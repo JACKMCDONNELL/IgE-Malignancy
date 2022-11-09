@@ -1,0 +1,2238 @@
+* import data (1) from XLSX sheets
+
+cd "C:\Users\mcdonnj\Desktop\IgE Data\19APR2021"
+
+import excel "C:\Users\mcdonnj\Desktop\IgE Data\IgE all original.xlsx", sheet("1st cancer and Xolair") firstrow allstring clear
+save FirstCAXolair, replace
+
+import excel "C:\Users\mcdonnj\Desktop\IgE Data\IgE all original.xlsx", sheet("Distinct Cancer Names") firstrow clear
+save DistinctCA, replace
+
+import excel "C:\Users\mcdonnj\Desktop\IgE Data\IgE all original.xlsx", sheet("All Cancer Dates") firstrow clear
+save AllcaDates, replace
+
+import excel "C:\Users\mcdonnj\Desktop\IgE Data\IgE all original.xlsx", sheet("All Xolair meds orders") firstrow clear
+save Xolair, replace
+
+import excel "C:\Users\mcdonnj\Desktop\IgE Data\IgE other data.xlsx", sheet("Sheet1") firstrow allstring clear
+save Igeother, replace
+
+* import data (2) from XLSX sheets
+
+cd "C:\Users\mcdonnj\Desktop\IgE Data\19APR2021"
+
+import excel "C:\Users\mcdonnj\Desktop\IgE Data\21AUG2020\IgE.xlsx", sheet("IgE w Ig Labs & 1stDX") firstrow allstring clear
+save IgE_AUG_21, replace
+
+import excel "C:\Users\mcdonnj\Desktop\IgE Data\21AUG2020\IgE.xlsx", sheet("IgE Cancer Xolair") firstrow allstring clear
+save IgE_xolair_AUG_21, replace
+
+import excel "C:\Users\mcdonnj\Desktop\IgE Data\21AUG2020\IgE.xlsx", sheet("Distinct Cancer Names") firstrow allstring clear
+save distinct_CA_AUG_21, replace
+
+import excel "C:\Users\mcdonnj\Desktop\IgE Data\21AUG2020\IgE.xlsx", sheet("All Cancer Dates") firstrow allstring clear
+save all_CA_dates_AUG_21, replace
+
+import excel "C:\Users\mcdonnj\Desktop\IgE Data\21AUG2020\IgE.xlsx", sheet("All Xolair meds orders") firstrow allstring clear
+save all_xolair_AUG_21, replace
+
+* import data (additional covariates) from XLSX sheets
+
+cd "C:\Users\mcdonnj\Desktop\IgE Data\19APR2021"
+
+import excel "C:\Users\mcdonnj\Desktop\IgE Data\additional_covariate\additional_covariate.xlsx", sheet("IgE w Ig Labs & 1stDX") firstrow allstring clear
+save additional_covariate.dta, replace
+
+* import censoring data
+cd "C:\Users\mcdonnj\Desktop\IgE Data\19APR2021"
+import excel "C:\Users\mcdonnj\Desktop\IgE Data\CONFIDENTIAL_Hsieh_126885_results from Email on 3-9-2021.xlsx", sheet("Sheet1") firstrow clear
+save censor, replace
+
+* start with additional covariate
+
+	use additional_covariate, clear
+	
+	* MRN 
+	label variable MRN "MRN-unique identifier"
+	list MRN if missing(real(MRN))
+	rename MRN MRN_str
+	destring MRN_str, gen(MRN)
+	drop MRN_str
+
+	* IgEName
+
+	tab IgEName
+	drop IgEName
+
+	* IgEResult / undetectable
+
+	rename IgEResult IgE
+	count if strpos(IgE, "<") /* count of IgE levels with "<" character associated. */
+	gen undetectable = strpos(IgE, "<") & !missing(IgE)
+	tab undetectable
+	label variable undetectable "undetectable IgE count"
+
+	gen IgE_str = subinstr(IgE, "<", "", 1)
+	replace IgE_str = subinstr(IgE_str, ">", "", 1)
+	replace IgE_str = strtrim(IgE_str)
+	drop IgE
+
+	list IgE_str if missing(real(IgE_str))
+	// count if missing(real(IgE_str))
+	* note these are all truly missing. Can look one by one as I did if you don't believe
+	destring IgE_str, generate(IgE) force
+	label variable IgE "IgE level"
+	replace IgE = 0 if undetectable == 1 
+	drop IgE_str
+
+	* IgEResultTIME 
+	list IgEResultTIME
+	split IgEResultTIME, p()
+	// replace IgEResultTIME1 = substr(IgEResultTIME1, 1,10)
+	list IgEResultTIME1 in 1/1000
+	gen collectdate = date(IgEResultTIME1, "DMY")
+	replace collectdate = date(IgEResultTIME1, "MDY") if missing(collectdate)
+	count if collectdate <0
+
+	drop IgEResultTIME1 IgEResultTIME2
+
+	format collectdate %td
+	list collectdate in 1/100
+
+	drop IgEResultTIME
+	label variable collectdate "date of IgE collection"
+
+	* ASSOC_DX_DESC
+	tab ASSOC_DX_DESC
+	rename ASSOC_DX_DESC dx_desc
+	count if dx_desc !=""
+	label variable dx_desc "diagnosis description"
+
+	* ASSOC_DX_NAME
+	rename ASSOC_DX_NAME dx_name
+	count if dx_name !=""
+
+	list dx_desc dx_name in 1/100
+
+	* dx_name is much more complete than dx_desc
+
+	drop dx_desc
+
+	* ASSOC_DX_ICD9Code
+
+	list dx_name ASSOC_DX_ICD9Code ASSOC_DX_ICD10Code in 1/100
+	label variable dx_name "diagnosis name"
+	// drop ASSOC_DX_ICD9Code ASSOC_DX_ICD10Code
+
+	* BMI, height, and weight
+
+	list BMI_Result Height_Result Weight_Result in 1/100
+
+	drop Height_Result Weight_Result
+
+	list BMI_Result if missing(real(BMI_Result)) & BMI_Result !=""
+	destring BMI_Result, replace force
+	list BMI_Result in 1/10
+
+	rename BMI_Result BMI
+	label variable BMI "BMI"
+	drop BMI_DATE Height_DATE Weight_DATE
+
+	* Most_Recent_Smoking_Status
+
+	rename Most_Recent_Smoking_Status Smoking_str
+	tab Smoking_str
+	label variable Smoking_str "smoking status"
+
+	* PROV_NAME
+
+	rename PROV_NAME provider_name
+	label variable provider_name "name of ordering provider"
+
+	* PROVIDERSPECIALTY
+
+	rename PROVIDERSPECIALTY specialty 
+	label variable specialty "medical specialty of ordering provider"
+
+	* nothing else seems to matter. Also, alcohol seems to be missing
+
+	drop LastIGABLDProcNamebeforeI-steverimmunodeficiencyfactor
+
+	* DUPLICATES
+
+	duplicates report MRN IgE collectdate
+
+	duplicates tag MRN IgE collectdate, gen(isdup)
+
+	count if isdup
+
+	drop if isdup
+
+	save covariate, replace
+	
+* move on to censor
+
+	use censor, clear
+
+	* MRN 
+	label variable MRN "MRN-unique identifier"
+	list MRN if missing(real(MRN))
+	rename MRN MRN_str
+	destring MRN_str, gen(MRN)
+	drop MRN_str
+
+	*DEATH_DATE
+	format DEATH_DATE %td
+	rename DEATH_DATE death_date
+
+	*LAST_CONTACT_DATE
+	format LAST_CONTACT_DATE %td
+	rename LAST_CONTACT_DATE last_contact_date
+	
+	save censoring, replace
+
+* move on to data set 2
+
+	use IgE_AUG_21, clear
+
+	describe
+
+	* MRN 
+	label variable MRN "MRN-unique identifier"
+	list MRN if missing(real(MRN))
+	rename MRN MRN_str
+	destring MRN_str, gen(MRN)
+	drop MRN_str
+
+	* IgEName
+	drop IgEName
+
+	* IgEResult / undetectable
+
+	rename IgEResult IgE
+	count if strpos(IgE, "<") /* count of IgE levels with "<" character associated. */
+	gen undetectable = strpos(IgE, "<") & !missing(IgE)
+	tab undetectable
+	label variable undetectable "undetectable IgE count"
+
+	gen IgE_str = subinstr(IgE, "<", "", 1)
+	replace IgE_str = subinstr(IgE_str, ">", "", 1)
+	replace IgE_str = strtrim(IgE_str)
+	drop IgE
+
+
+	list IgE_str if missing(real(IgE_str))
+	// count if missing(real(IgE_str))
+	* note these are all truly missing. Can look one by one as I did if you don't believe
+	destring IgE_str, generate(IgE) force
+	label variable IgE "IgE level"
+	replace IgE = 0 if undetectable == 1 
+	drop IgE_str
+
+	* IgEResultTIME 
+	list IgEResultTIME  in 1/10
+	replace IgEResultTIME = substr(IgEResultTIME, 1,9)
+	gen collectdate = date(IgEResultTIME, "DMY")
+	format collectdate %td
+	list collectdate in 1/10
+
+	drop IgEResultTIME
+	label variable collectdate "date of IgE collection"
+
+	* WBC variables
+
+	* browse CBC variables
+	browse CBCWBCNamebeforeIgEResultT CBCWBCResultTimebeforeIgER CBCWBCResultbeforeIgEResult CBCWBCNameafterIgEResultTI ///
+	CBCWBCResultTimeafterIgERe CBCWBCResultafterIgEResult CBCDIFFWBCNamebeforeIgER CBCDIFFWBCResultTimebefor CBCDIFFWBCResultbeforeIgE ///
+	CBCDIFFWBCNameafterIgERe CBCDIFFWBCResultTimeafter CBCDIFFWBCResultafterIgE CBCDIFFFORREMOTEFHCUSE ///
+	AJ AK AL AM AN
+
+	tab CBCWBCNamebeforeIgEResultT /* looks correct */
+	drop CBCWBCNamebeforeIgEResultT
+
+	tab CBCWBCNameafterIgEResultTI /* looks correct */
+	drop CBCWBCNameafterIgEResultTI
+
+	tab CBCDIFFWBCNamebeforeIgER /* looks correct */
+	drop CBCDIFFWBCNamebeforeIgER
+
+	tab CBCDIFFWBCNameafterIgERe /* looks correct */
+	drop CBCDIFFWBCNameafterIgERe
+
+	tab CBCDIFFFORREMOTEFHCUSE
+	drop CBCDIFFFORREMOTEFHCUSE
+
+	tab1 AJ AK AL AM AN /* these seem to correspond to remote/satellite IgE measurements and as such should not be dropped */
+
+	rename CBCWBCResultTimebeforeIgER CBCdatebefore
+	rename CBCWBCResultbeforeIgEResult CBCresultbefore
+	rename CBCWBCResultTimeafterIgERe CBCdateafter
+	rename CBCWBCResultafterIgEResult CBCresultafter
+	rename CBCDIFFWBCResultTimebefor CBCdateother
+	rename CBCDIFFWBCResultbeforeIgE CBCresultsother
+	rename CBCDIFFWBCResultTimeafter CBCdate_other_2
+	rename CBCDIFFWBCResultafterIgE CBCresult_other_2
+	rename AJ CBCdate_remote_1
+	rename AK CBCresult_remote_1
+	drop AL
+	rename AM CBCdate_remote_2
+	rename AN CBCresult_remote_2
+
+	* start with first CBC result variable
+	list CBCdatebefore CBCresultbefore in 1/100
+
+	* destring WBC 
+	gen WBC_str = CBCresultbefore
+	count if !missing(real(WBC_str)) 
+	count if missing(real(WBC_str)) /* count of missing values for WBC, from the perspective of this variable*/
+
+	// list WBC_str WBC if missing(real(WBC_str)) /* just to be sure all of these are actually missing, and not due to illegal characters */
+	drop CBCresultbefore
+
+	destring WBC_str, generate(WBC) force
+	drop WBC_str
+	label variable WBC "WBC level"
+
+	* deal with first WBC time variable
+
+	gen WBC_date_1 = CBCdatebefore
+	replace WBC_date_1 = substr(WBC_date, 1,9)
+	replace WBC_date_1 = strtrim(WBC_date_1)
+	list WBC_date_1 CBCdatebefore in 1/100
+
+	gen WBCdate = date(WBC_date_1, "DMY")
+	format WBCdate %td
+	list WBCdate WBC_date_1 in 1/100
+	drop WBC_date_1
+	drop CBCdatebefore
+	label variable WBCdate "date of last WBC measurement"
+
+	* ok that handles the first of the strings of WBCs, now for the others
+
+	* start with second CBC result variable
+	list CBCdateafter CBCresultafter in 1/100
+
+	* destring WBC 
+	gen WBC_str = CBCresultafter
+	count if !missing(real(WBC_str)) 
+	count if missing(real(WBC_str)) /* count of missing values for WBC, from the perspective of this 2nd WBC variable*/
+
+	// list WBC_str CBCresultafter if missing(real(WBC_str)) /* just to be sure all of these are actually missing, and not due to illegal characters */
+	drop CBCresultafter
+
+	destring WBC_str, generate(WBC2) force
+	drop WBC_str
+	label variable WBC2 "WBC level"
+
+	* deal with second WBC time variable
+
+	gen WBC_date_1 = CBCdateafter
+	replace WBC_date_1 = substr(WBC_date, 1,9)
+	replace WBC_date_1 = strtrim(WBC_date_1)
+	list WBC_date_1 CBCdateafter in 1/100
+
+	gen WBCdate1 = date(WBC_date_1, "DMY")
+	format WBCdate1 %td
+	list WBCdate1 WBC_date_1 in 1/100
+	drop WBC_date_1
+	drop CBCdateafter
+	label variable WBCdate1 "date of last WBC measurement (2nd variable)"
+
+	* start with third CBC result variable
+	list CBCdateother CBCresultsother in 1/100
+
+	* destring WBC 
+	gen WBC_str = CBCresultsother
+	count if !missing(real(WBC_str)) 
+	count if missing(real(WBC_str)) /* count of missing values for WBC, from the perspective of this 3rd WBC variable*/
+
+	list WBC_str CBCresultsother if missing(real(WBC_str)) /* just to be sure all of these are actually missing, and not due to illegal characters */
+	drop CBCresultsother
+
+	destring WBC_str, generate(WBC3) force
+	drop WBC_str
+	label variable WBC3 "WBC level"
+
+	* deal with third WBC time variable
+
+	gen WBC_date_1 = CBCdateother
+	replace WBC_date_1 = substr(WBC_date, 1,9)
+	replace WBC_date_1 = strtrim(WBC_date_1)
+	list WBC_date_1 CBCdateother in 1/100
+
+	gen WBCdate2 = date(WBC_date_1, "DMY")
+	format WBCdate2 %td
+	list WBCdate2 WBC_date_1 in 1/100
+	drop WBC_date_1
+	drop CBCdateother
+	label variable WBCdate2 "date of last WBC measurement (3rd variable)"
+
+	* start with fourth CBC result variable
+	list CBCdate_other_2 CBCresult_other_2 in 1/100
+
+	* destring WBC 
+	gen WBC_str = CBCresult_other_2
+	count if !missing(real(WBC_str)) 
+	count if missing(real(WBC_str)) /* count of missing values for WBC, from the perspective of this 3rd WBC variable*/
+
+	// list WBC_str CBCresult_other_2 if missing(real(WBC_str)) /* just to be sure all of these are actually missing, and not due to illegal characters */
+	drop CBCresult_other_2
+
+	destring WBC_str, generate(WBC4) force
+	drop WBC_str
+	label variable WBC4 "WBC level"
+
+	* deal with fourth WBC time variable
+
+	gen WBC_date_1 = CBCdate_other_2
+	replace WBC_date_1 = substr(WBC_date, 1,9)
+	replace WBC_date_1 = strtrim(WBC_date_1)
+	list WBC_date_1 CBCdate_other_2 in 1/100
+
+	gen WBCdate3 = date(WBC_date_1, "DMY")
+	format WBCdate3 %td
+	list WBCdate3 WBC_date_1 in 1/100
+	drop WBC_date_1
+	drop CBCdate_other_2
+	label variable WBCdate3 "date of last WBC measurement (4th variable)"
+
+	* start with fifth CBC result variable
+	list CBCdate_remote_1 CBCresult_remote_1 if !missing(CBCresult_remote_1)
+
+	* destring WBC 
+	gen WBC_str = CBCresult_remote_1
+	count if !missing(real(WBC_str)) 
+	count if missing(real(WBC_str)) /* count of missing values for WBC, from the perspective of this 3rd WBC variable*/
+
+	// list WBC_str CBCresult_remote_1 if missing(real(WBC_str)) /* just to be sure all of these are actually missing, and not due to illegal characters */
+	drop CBCresult_remote_1
+
+	destring WBC_str, generate(WBC5) force
+	drop WBC_str
+	label variable WBC5 "WBC level"
+
+	* deal with fifth WBC time variable
+
+	gen WBC_date_1 = CBCdate_remote_1
+	replace WBC_date_1 = substr(WBC_date, 1,9)
+	replace WBC_date_1 = strtrim(WBC_date_1)
+	list WBC_date_1 CBCdate_remote_1 if !missing(WBC_date_1)
+
+	gen WBCdate4 = date(WBC_date_1, "DMY")
+	format WBCdate4 %td
+	list WBCdate4 WBC_date_1 if !missing(WBC_date_1)
+	drop WBC_date_1
+	drop CBCdate_remote_1
+	label variable WBCdate4 "date of last WBC measurement (5th variable)"
+
+	* start with sixth CBC result variable
+	list CBCdate_remote_2 CBCresult_remote_2 if !missing(CBCresult_remote_2)
+
+	* destring WBC 
+	gen WBC_str = CBCresult_remote_2
+	count if !missing(real(WBC_str)) 
+	count if missing(real(WBC_str)) /* count of missing values for WBC, from the perspective of this 3rd WBC variable*/
+
+	// list WBC_str CBCresult_remote_2 if missing(real(WBC_str)) /* just to be sure all of these are actually missing, and not due to illegal characters */
+	drop CBCresult_remote_2
+
+	destring WBC_str, generate(WBC6) force
+	drop WBC_str
+	label variable WBC6 "WBC level"
+
+	* deal with fifth WBC time variable
+
+	gen WBC_date_1 = CBCdate_remote_2
+	replace WBC_date_1 = substr(WBC_date, 1,9)
+	replace WBC_date_1 = strtrim(WBC_date_1)
+	list WBC_date_1 CBCdate_remote_2 if !missing(WBC_date_1)
+
+	gen WBCdate5 = date(WBC_date_1, "DMY")
+	format WBCdate5 %td
+	list WBCdate5 WBC_date_1 if !missing(WBC_date_1)
+	drop WBC_date_1
+	drop CBCdate_remote_2
+	label variable WBCdate5 "date of last WBC measurement (6th variable)"
+
+	* how do I combine these WBC variables
+	* one strategy may be to use the most recent
+
+	sum WBCdate1 WBCdate2 WBCdate3 WBCdate4 WBCdate5
+
+	* in which case we would pick WBCdate5, since it has highest mean
+	* still, it might be worth coming back to this because we will likely want to exclude WBC counts measured after dx of cancer
+
+	* deal with IgG variables
+	browse LastIgGNAMEbeforeIgEResult LastIgGResultTimebeforeIgE LastIgGResultbeforeIgEResul ///
+	stIgGNAMEafterIgEResultTI stIgGResultTimeafterIgERe stIgGResultafterIgEResult
+
+	tab1 LastIgGNAMEbeforeIgEResult stIgGNAMEafterIgEResultTI
+	drop LastIgGNAMEbeforeIgEResult stIgGNAMEafterIgEResultTI
+
+	rename LastIgGResultTimebeforeIgE IgG_date
+	rename LastIgGResultbeforeIgEResul IgG
+
+	rename stIgGResultTimeafterIgERe IgG_date_1
+	rename stIgGResultafterIgEResult IgG_1
+
+	gen IgG_date_a = IgG_date 
+	replace IgG_date_a = substr(IgG_date, 1,9)
+	list IgG_date IgG_date_a 
+	gen IgGdate = date(IgG_date_a, "DMY")
+	format IgGdate %td
+	list IgGdate IgG_date_a IgG_date in 1/100
+	drop IgG_date_a IgG_date
+	label variable IgGdate "date of last IgG measurement"
+
+	gen IgG_str = IgG 
+	count if !missing(real(IgG_str)) 
+	count if missing(real(IgG_str)) /* count of missing values for IgG  */
+
+	// list IgG_str IgG if missing(real(IgG_str)) /* just to be sure all of these are actually missing, and not due to illegal characters */
+	drop IgG
+
+	destring IgG_str, generate(IgG)
+	drop IgG_str
+	label variable IgG "IgG level"
+	sum IgG /* implausible values */
+	// list IgG if !missing(IgG)
+	list IgG if IgG > 5000 & !missing(IgG)
+	* obviously the 999999 ones are missing
+	replace IgG = . if IgG > 10000
+
+	sum IgG /* looks better */
+
+	* that helps us with the first IgG value. Now on to the second
+
+	gen IgG_date_a = IgG_date_1
+	replace IgG_date_a = substr(IgG_date_1, 1,9)
+	list IgG_date_1 IgG_date_a 
+	gen IgGdate_1 = date(IgG_date_a, "DMY")
+	format IgGdate_1 %td
+	list IgGdate_1 IgG_date_a IgG_date_1 in 1/100
+	drop IgG_date_a IgG_date_1
+	label variable IgGdate_1 "date of last IgG measurement"
+
+	gen IgG_str = IgG_1
+	count if !missing(real(IgG_str)) 
+	count if missing(real(IgG_str)) /* count of missing values for IgG  */
+
+	// list IgG_str IgG_1 if missing(real(IgG_str)) /* just to be sure all of these are actually missing, and not due to illegal characters */
+	drop IgG_1
+
+	destring IgG_str, generate(IgG_1)
+	drop IgG_str
+	label variable IgG_1 "IgG level"
+	sum IgG_1 /* implausible values */
+	// list IgG_1 if !missing(IgG_1)
+	list IgG_1 if IgG_1 > 5000 & !missing(IgG_1)
+	* obviously the 999999 ones are missing
+	replace IgG_1 = . if IgG_1 > 10000
+
+	sum IgG_1 /* looks better */
+
+	sum IgG IgG_1 /* this shows that these two variables are the exact same. We only need one */
+	sum IgGdate IgGdate_1
+	drop IgG_1 IgGdate_1 
+
+	* deal with IgA variables
+	browse LastIGABLDProcNamebeforeI LastIGABLDResultbeforeIgE LastIGABLDResultTimeIgERes stIGABLDProcNameafterIgE ///
+	stIGABLDResultafterIgERes stIGABLDResultTimeafterIg LastIgANAMEbeforeIgEResult LastIgAResultTimebeforeIgE ///
+	LastIgAResultbeforeIgEResul stIgANAMEafterIgEResultTI stIgAResultTimeafterIgERe stIgAResultafterIgEResult
+
+	rename LastIGABLDProcNamebeforeI IgA_name_1
+	rename LastIGABLDResultbeforeIgE IgA_result_1
+	rename LastIGABLDResultTimeIgERes IgA_date_1
+
+	rename stIGABLDProcNameafterIgE IgA_name_2
+	rename stIGABLDResultafterIgERes IgA_result_2
+	rename stIGABLDResultTimeafterIg IgA_date_2
+
+	rename LastIgANAMEbeforeIgEResult IgA_name_3
+	rename LastIgAResultbeforeIgEResul IgA_result_3
+	rename LastIgAResultTimebeforeIgE IgA_date_3
+
+	rename stIgANAMEafterIgEResultTI IgA_name_4
+	rename stIgAResultafterIgEResult IgA_result_4
+	rename stIgAResultTimeafterIgERe IgA_date_4
+
+	* a number of these don't actually correspond to serum IgA measurements, which is what we actually care about. 
+
+	tab1 IgA_name_1 IgA_name_2 /* this one looks ok */
+	drop IgA_name_1 IgA_name_2
+
+	tab1 IgA_name_3 IgA_name_4 /* these are the same */
+	list IgA_date_3 IgA_date_4 in 1/100
+
+
+	drop IgA_name_4 IgA_result_4 IgA_date_4 /* get rid of the duplicates */
+
+	gen IgA_date_11 = IgA_date_1
+	replace IgA_date_11 = substr(IgA_date_1, 1,9)
+	list IgA_date_1 IgA_date_11
+
+	gen IgAdate_1 = date(IgA_date_11, "DMY")
+	list IgA_date_1 IgA_date_11 IgAdate_1
+	format IgAdate %td
+	list IgAdate_1 IgA_date_1 IgA_date_11 in 1/100
+	drop IgA_date_11 IgA_date_1
+	label variable IgAdate_1 "date of IgA measurement (first variable)"
+
+	gen IgA_str = IgA_result_1
+	count if !missing(real(IgA_str)) 
+	count if missing(real(IgA_str)) /* count of missing values for IgA  */
+	// list IgA_str IgA_result_1 if missing(real(IgA_str)) /* just to be sure all of these are actually missing, and not due to illegal characters */
+	drop IgA_result_1
+
+	list IgA_str if missing(real(IgA_str)) & !missing(IgA_str)/* count of missing values for IgA  */
+	replace IgA_str = "0" if strpos(IgA_str, "<") & !missing(IgA_str)
+	replace IgA_str = subinstr(IgA_str, ">", "", 1)
+	destring IgA_str, generate(IgA_result_1) force
+	drop IgA_str
+	label variable IgA_result_1 "IgA level (var1)"
+
+	sum IgA_result_1 /* implausible values */
+	list IgA_result_1 if !missing(IgA_result_1)
+	list IgA_result_1 if IgA_result_1> 5000 & !missing(IgA_result_1)
+	* no obvious signs that these are erroneous values
+
+	* now, repeat the above IgA steps for the other 2
+
+	gen IgA_date_11 = IgA_date_2
+	replace IgA_date_11 = substr(IgA_date_2, 1,9)
+	list IgA_date_2 IgA_date_11
+
+	gen IgAdate_2 = date(IgA_date_11, "DMY")
+	list IgA_date_2 IgA_date_11 
+	format IgAdate_2 %td
+	list IgAdate_2 IgA_date_2 IgA_date_11 in 1/100
+	drop IgA_date_11 IgA_date_2
+	label variable IgAdate_2 "date of IgA measurement (second variable)"
+
+	gen IgA_str = IgA_result_2
+	count if !missing(real(IgA_str)) 
+	count if missing(real(IgA_str)) /* count of missing values for IgA  */
+	// list IgA_str IgA_result_2 if missing(real(IgA_str)) /* just to be sure all of these are actually missing, and not due to illegal characters */
+	drop IgA_result_2
+
+	list IgA_str if missing(real(IgA_str)) & !missing(IgA_str)/* count of missing values for IgA  */
+	replace IgA_str = "0" if strpos(IgA_str, "<") & !missing(IgA_str)
+	replace IgA_str = subinstr(IgA_str, ">", "", 1)
+	destring IgA_str, generate(IgA_result_2) force
+	drop IgA_str
+	label variable IgA_result_2 "IgA level (var2)"
+
+	sum IgA_result_2 /* implausible values */
+	list IgA_result_2 if !missing(IgA_result_2)
+	list IgA_result_2 if IgA_result_2> 5000 & !missing(IgA_result_2)
+	* no obvious signs that these are erroneous values
+
+	* the third variable for IgA has some issues, as we saw before
+	tab IgA_name_3
+
+	gen IgA_name_31 = IgA_name_3
+	replace IgA_name_31 = "" if IgA_name_3 =="ANTI IGA AB" | IgA_name_3 == "IGA, SUBCLASS 2" | IgA_name_3 == "MPA IGA, SERUM" | IgA_name_3 == "SEMEN IGA"
+
+	drop IgA_name_3
+	rename IgA_name_31 IgA_name_3
+
+	replace IgA_result_3 = "" if missing(IgA_name_3)
+	replace IgA_date_3 = "" if missing(IgA_name_3)
+	drop IgA_name_3
+
+	gen IgA_date_11 = IgA_date_3
+	replace IgA_date_11 = substr(IgA_date_3, 1,9)
+	list IgA_date_3 IgA_date_11
+
+	gen IgAdate_3 = date(IgA_date_11, "DMY")
+	list IgA_date_3 IgA_date_11 
+	format IgAdate_3 %td
+	list IgAdate_3 IgA_date_3 IgA_date_11 in 1/100
+	drop IgA_date_11 IgA_date_3
+	label variable IgAdate_3 "date of IgA measurement (third variable)"
+
+	gen IgA_str = IgA_result_3
+	count if !missing(real(IgA_str)) 
+	count if missing(real(IgA_str)) /* count of missing values for IgA  */
+	// list IgA_str IgA_result_3 if missing(real(IgA_str)) /* just to be sure all of these are actually missing, and not due to illegal characters */
+	drop IgA_result_3
+
+	list IgA_str if missing(real(IgA_str)) & !missing(IgA_str)/* count of missing values for IgA  */
+	destring IgA_str, generate(IgA_result_3) 
+	drop IgA_str
+	label variable IgA_result_3 "IgA level (var3)"
+
+	sum IgA_result_3/* implausible values */
+	// list IgA_result_3 if !missing(IgA_result_3)
+	list IgA_result_3 if IgA_result_3> 5000 & !missing(IgA_result_3)
+	replace IgA_result_3 = . if IgA_result_3> 5000 & !missing(IgA_result_3)
+
+	sum IgA_result_3
+
+	* deal with IgM variables
+
+	browse LastIGMProcNamebeforeIgER LastIGMResultbeforeIgEResu LastIGMResultTimebeforeIgE stIGMProcNameafterIgEResu stIGMResultafterIgEResult stIGMResultTimeafterIgERe LastIgMNAMEbeforeIgEResult LastIgMResultTimebeforeIgE LastIgMResultbeforeIgEResul stIgMNAMEafterIgEResultTI stIgMResultTimeafterIgERe stIgMResultafterIgEResult
+
+	tab1 LastIGMProcNamebeforeIgER stIGMProcNameafterIgEResu LastIgMNAMEbeforeIgEResult stIgMNAMEafterIgEResultTI /* don't seem to have any wrong values */
+
+	rename LastIGMProcNamebeforeIgER IgM_name_1
+	rename LastIGMResultbeforeIgEResu IgM_result_1
+	rename LastIGMResultTimebeforeIgE IgM_date_1
+
+	rename stIGMProcNameafterIgEResu IgM_name_2
+	rename stIGMResultafterIgEResult IgM_result_2
+	rename stIGMResultTimeafterIgERe IgM_date_2
+
+	rename LastIgMNAMEbeforeIgEResult IgM_name_3
+	rename LastIgMResultbeforeIgEResul IgM_result_3
+	rename LastIgMResultTimebeforeIgE IgM_date_3
+
+	rename stIgMNAMEafterIgEResultTI IgM_name_4
+	rename stIgMResultafterIgEResult IgM_result_4
+	rename stIgMResultTimeafterIgERe IgM_date_4
+
+	drop IgM_name_1 IgM_name_2 IgM_name_3 IgM_name_4
+
+	* first IgM 
+
+	gen IgM_date_a = IgM_date_1
+	replace IgM_date_a = substr(IgM_date_1, 1,9)
+	list IgM_date_1 IgM_date_a
+
+	gen IgMdate_1 = date(IgM_date_a, "DMY")
+	format IgMdate_1 %td
+	list IgMdate_1 IgM_date_a in 1/100
+	drop IgM_date_a IgM_date_1
+	label variable IgMdate_1 "date of IgM measurement (var1)"
+
+	gen IgM_str = IgM_result_1
+	count if !missing(real(IgM_str)) 
+	count if missing(real(IgM_str)) /* count of missing values for IgG  */
+
+	// list IgM_str IgM_result_1 if missing(real(IgM_str)) /* just to be sure all of these are actually missing, and not due to illegal characters */
+	drop IgM_result_1
+
+	list IgM_str if missing(real(IgM_str)) & !missing(IgM_str)/* count of missing values for IgM  */
+	replace IgM_str = "0" if strpos(IgM_str, "<") & !missing(IgM_str)
+	replace IgM_str = subinstr(IgM_str, ">", "", 1)
+	destring IgM_str, generate(IgM_result_1) force
+	drop IgM_str
+	label variable IgM_result_1 "IgM level"
+
+
+	sum IgM_result_1 /* implausible values */
+	list IgM_result_1 if !missing(IgM_result_1)
+	list IgM_result_1 if IgM_result_1 > 5000 & !missing(IgM_result_1)
+	* no obvious problems
+
+	* second IgM 
+
+	gen IgM_date_a = IgM_date_2
+	replace IgM_date_a = substr(IgM_date_2, 1,9)
+	list IgM_date_2 IgM_date_a
+
+	gen IgMdate_2 = date(IgM_date_a, "DMY")
+	format IgMdate_2 %td
+	list IgMdate_2 IgM_date_a in 1/100
+	drop IgM_date_a IgM_date_2
+	label variable IgMdate_2 "date of IgM measurement (var2)"
+
+	gen IgM_str = IgM_result_2
+	count if !missing(real(IgM_str)) 
+	count if missing(real(IgM_str)) /* count of missing values for IgG  */
+
+	// list IgM_str IgM_result_2 if missing(real(IgM_str)) /* just to be sure all of these are actually missing, and not due to illegal characters */
+	drop IgM_result_2
+
+	list IgM_str if missing(real(IgM_str)) & !missing(IgM_str)/* count of missing values for IgM  */
+	replace IgM_str = "0" if strpos(IgM_str, "<") & !missing(IgM_str)
+	replace IgM_str = subinstr(IgM_str, ">", "", 1)
+	destring IgM_str, generate(IgM_result_2) force
+	drop IgM_str
+	label variable IgM_result_2 "IgM level"
+
+	sum IgM_result_2 /* implausible values */
+	list IgM_result_2 if !missing(IgM_result_2)
+	list IgM_result_2 if IgM_result_2 > 5000 & !missing(IgM_result_2)
+	* no obvious problems
+
+
+	* third IgM 
+	gen IgM_date_a = IgM_date_3
+	replace IgM_date_a = substr(IgM_date_3, 1,9)
+	list IgM_date_3 IgM_date_a
+
+	gen IgMdate_3 = date(IgM_date_a, "DMY")
+	format IgMdate_3 %td
+	list IgMdate_3 IgM_date_a in 1/100
+	drop IgM_date_a IgM_date_3
+	label variable IgMdate_3 "date of IgM measurement (var3)"
+
+	gen IgM_str = IgM_result_3
+	count if !missing(real(IgM_str)) 
+	count if missing(real(IgM_str)) /* count of missing values for IgM  */
+
+	// list IgM_str IgM_result_3 if missing(real(IgM_str)) /* just to be sure all of these are actually missing, and not due to illegal characters */
+	drop IgM_result_3
+
+	list IgM_str if missing(real(IgM_str)) & !missing(IgM_str)/* count of missing values for IgM  */
+	// replace IgM_str = "0" if strpos(IgM_str, "<") & !missing(IgM_str)
+	// replace IgM_str = subinstr(IgM_str, ">", "", 1)
+	destring IgM_str, generate(IgM_result_3) 
+	drop IgM_str
+	label variable IgM_result_3"IgM level"
+
+	sum IgM_result_3 /* implausible values */
+	list IgM_result_3 if !missing(IgM_result_3)
+	list IgM_result_3 if IgM_result_3 > 6000 & !missing(IgM_result_3)
+	replace IgM_result_3 = . if IgM_result_3> 6000 & !missing(IgM_result_3)
+
+	sum IgM_result_3
+
+	* unbelievably, a fourth IgM 
+	gen IgM_date_a = IgM_date_4
+	replace IgM_date_a = substr(IgM_date_4, 1,9)
+	list IgM_date_4 IgM_date_a
+
+	gen IgMdate_4 = date(IgM_date_a, "DMY")
+	format IgMdate_4 %td
+	list IgMdate_4 IgM_date_a in 1/100
+	drop IgM_date_a IgM_date_4
+	label variable IgMdate_4 "date of IgM measurement (var4)"
+
+	gen IgM_str = IgM_result_4
+	count if !missing(real(IgM_str)) 
+	count if missing(real(IgM_str)) /* count of missing values for IgM  */
+
+	// list IgM_str IgM_result_4 if missing(real(IgM_str)) /* just to be sure all of these are actually missing, and not due to illegal characters */
+	drop IgM_result_4
+
+	list IgM_str if missing(real(IgM_str)) & !missing(IgM_str)/* count of missing values for IgM  */
+	// replace IgM_str = "0" if strpos(IgM_str, "<") & !missing(IgM_str)
+	// replace IgM_str = subinstr(IgM_str, ">", "", 1)
+	destring IgM_str, generate(IgM_result_4) 
+	drop IgM_str
+	label variable IgM_result_4 "IgM level"
+
+	sum IgM_result_4 /* implausible values */
+	list IgM_result_4 if !missing(IgM_result_4)
+	list IgM_result_4 if IgM_result_4 > 6000 & !missing(IgM_result_4)
+	replace IgM_result_4 = . if IgM_result_4> 6000 & !missing(IgM_result_4)
+
+	sum IgM_result_4 IgM_result_3 
+	sum IgMdate_3 IgMdate_4 /* these are exactly the same */
+
+	drop IgM_result_4 IgMdate_4
+
+	* HIV 
+	gen HIV = 0
+	replace HIV = 1 if !missing(steverHIVAIDSDate)
+	label variable  HIV "binary for HIV status"
+	drop steverHIVAIDSDate
+
+	* CVID
+	gen CVID = 0
+	replace CVID = 1 if !missing(steverCVIDDate)
+	label variable CVID "binary for CVID status"
+	// drop steverCVIDDate
+
+	rename steverCVIDDate CVIDdxdate
+	replace CVIDdxdate = substr(CVIDdxdate, 1,9)
+	gen CVIDdate = date(CVIDdxdate, "DMY")
+	format CVIDdate %td
+	// list CVIDdate CVIDdxdate
+	drop CVIDdxdate
+	label variable CVIDdate "date of CVID diagnosis"
+
+	* immunodeficiency
+	gen immunodeficiency = 0
+	replace immunodeficiency = 1 if !missing(steverimmunodeficiencyfactor)
+	label variable immunodeficiency "binary for immunodeficiency status"
+	drop steverimmunodeficiencyfactor
+
+	save IgE_AUG_21.dta, replace
+
+	* next sheet, "IgE Cancer Xolair"
+	use IgE_xolair_AUG_21, clear
+
+	describe
+
+	* MRN 
+	label variable MRN "MRN-unique identifier"
+	list MRN if missing(real(MRN))
+	rename MRN MRN_str
+	destring MRN_str, gen(MRN)
+	drop MRN_str
+
+	* IgEName
+	tab IgEName /* all valid */
+	drop IgEName
+
+	* IgEResult
+
+	gen IgE_str = IgEResult
+	count if !missing(real(IgE_str)) 
+	count if missing(real(IgE_str)) /* count of missing values for IgE  */
+
+
+	gen undetectable = strpos(IgE_str, "<") & !missing(IgE_str)
+	tab undetectable
+	label variable undetectable "undetectable IgE count"
+
+	replace IgE_str = subinstr(IgE_str, "<", "", 1)
+	replace IgE_str = subinstr(IgE_str, ">", "", 1)
+	replace IgE_str = strtrim(IgE_str)
+	drop IgEResult
+
+	list IgE_str if missing(real(IgE_str))
+
+	* note these are all truly missing. Can look one by one as I did if you don't believe
+
+	destring IgE_str, generate(IgE) force
+	label variable IgE "IgE level"
+	replace IgE = 0 if undetectable == 1 
+	drop IgE_str
+
+	* IgEResultTIME
+
+	list IgEResultTIME  in 1/100
+	replace IgEResultTIME = substr(IgEResultTIME, 1,11)
+	gen collectdate = date(IgEResultTIME, "MDY")
+	format collectdate %td
+	list IgEResultTIME collectdate in 1/100
+
+	drop IgEResultTIME
+	label variable collectdate "date of IgE collection"
+
+	* PAT_NAM
+	drop PAT_NAM
+
+	* BIRTH_DATE
+	list BIRTH in 1/100
+	split BIRTH
+	list BIRTH_DATE1 BIRTH_DATE2 in 1/100
+	drop BIRTH_DATE2
+
+	gen dob = date(BIRTH_DATE1, "MDY")
+	format dob %td
+	list dob in 1/100
+	label variable dob "date of birth"
+	drop BIRTH_DATE1
+	drop BIRTH_DATE
+
+	list CurrentAge in 1/100 
+	drop CurrentAge
+	gen age = collectdate - dob
+	replace age = floor(age/365.25)
+	sum age
+
+	count if age < 0 
+	count if age < 18 /* number of children */
+	label variable age "age at IgE collection"
+
+	* SexName
+	tab SexName
+
+	gen male = 1 
+	replace male = 0 if SexName=="Female"
+	replace male = . if SexName=="Unknown"
+	tab SexName male, missing
+	label variable male "male sex"
+	drop SexName
+
+	* RaceName
+	tab RaceName
+
+	encode RaceName, generate(race_num)
+	tab RaceName race_num
+	tab race_num
+	tab race_num, nolabel
+
+	gen race = 9 /* white */
+	replace race = 3 if race_num == 3 /* black */
+	replace race = 2 if race_num == 2 /* asian */
+	replace race = 6 if race_num == 6 | race_num == 1 | race_num ==5 | race_num == 6 
+	replace race = . if race_num == 8 | race_num == 7 | race_num == 4
+
+	tab race_num race, missing
+	recode race (2=1) /* Asian */ (3=2) /* Black */ (6=3) /* Other */ (9=4) /* White */
+	label define race_l 1 "Asian" 2 "Black" 3 "Other" 4 "White"
+	label values race race_l
+	label variable race "race of subject"
+
+	tab RaceNam race
+	drop RaceName race_num
+	 
+	* EthnicGroupName
+	drop EthnicGroupName
+
+	* HispanicOrNot
+	drop HispanicOrNot
+
+	* stCancerDXDate
+
+	list stCancerDXDate in 1/100
+	split stCancerDXDate
+	drop stCancerDXDate2
+	list stCancerDXDate1 in 1/100
+
+	gen cancer_dx_date = date(stCancerDXDate1, "MDY")
+	format cancer_dx_date %td
+	list cancer_dx_date in 1/100
+	label variable cancer_dx_date "date of cancer diagnosis"
+	drop stCancerDXDate1 stCancerDXDate
+
+	* Ageat1stCanverDxDate
+
+	gen cancer_age = cancer_dx_date - dob
+	replace cancer_age = floor(cancer_age/365.25)
+	list age cancer_age in 1/100 /* note: cancer_age gives age at diagnosis, but lots of missing values. perhaps collect_age will be better to use */
+	list cancer_age Ageat1stCanverDxDate in 1/100 /* note that there is relatively good concordance here */
+	drop Ageat1stCanverDxDate
+
+	* stCancerDXName
+	codebook stCancerDXName /* lots of missing, corresponding to folks who never got cancer */
+	gen cancer = 0 
+	replace cancer = 1 if stCancerDXName != ""
+	label variable cancer "did subject have cancer"
+
+	* stCancerICD9Code
+	icd9 check stCancerICD9Code, list
+	icd9 check stCancerICD9Code, generate(ICD9_error)
+
+	tab ICD9_error
+	tab ICD9_error, nolabel
+
+
+	list stCancerICD9Code if ICD9_error ==1
+	replace stCancerICD9Code = substr(stCancerICD9Code, 1,3) if ICD9_error ==1
+	list stCancerICD9Code if ICD9_error ==2
+	split stCancerICD9Code if ICD9_error ==2, p(,)
+
+	list stCancerICD9Code1 stCancerICD9Code2 stCancerICD9Code3 if ICD9_error==2
+	drop stCancerICD9Code2 stCancerICD9Code3
+	replace stCancerICD9Code = stCancerICD9Code1 if ICD9_error ==2
+	drop stCancerICD9Code1
+
+	list stCancerICD9Code if ICD9_error ==4
+	split stCancerICD9Code if ICD9_error ==4, p(,)
+	drop stCancerICD9Code2
+	replace stCancerICD9Code = stCancerICD9Code1 if ICD9_error==4
+	drop ICD9_error
+
+	* double check corrections
+	icd9 check stCancerICD9Code, list
+	icd9 check stCancerICD9Code, generate(ICD9_error)
+
+	icd9 generate icd9desc = stCancerICD9Code, description end
+	drop stCancerDXName
+	rename stCancerICD9Code cancer_icd9
+	label variable cancer_icd9 "ICD9 code for first cancer"
+	drop ICD9_error
+
+	* Cancer_FirstICD10Codes
+	icd10 check stCancerICD10Code
+	icd10 check stCancerICD10Code, generate(ICD10_error)
+
+	list stCancerICD10Code if ICD10_error==1
+	split stCancerICD10Code if ICD10_error==1, p(,)
+	drop stCancerICD10Code2
+	replace stCancerICD10Code = stCancerICD10Code1 if ICD10_error==1
+	drop stCancerICD10Code1
+
+
+	list stCancerICD10Code if ICD10_error==2
+	split stCancerICD10Code if ICD10_error==2, p(,)
+	drop stCancerICD10Code2
+	replace stCancerICD10Code = stCancerICD10Code1 if ICD10_error==2
+	drop stCancerICD10Code1
+	drop stCancerICD10Code3
+
+	list stCancerICD10Code if ICD10_error==4
+	icd10cm generate icd10desc1 = stCancerICD10Code if ICD10_error==4, description
+
+	list stCancerICD10Code if ICD10_error==7
+	icd10cm generate icd10_CM = stCancerICD10Code if ICD10_error==7, description
+	replace icd10desc1 = icd10_CM if ICD10_error==7
+	drop icd10_CM
+
+	list stCancerICD10Code if ICD10_error==99
+	icd10cm generate icd10_CM = stCancerICD10Code if ICD10_error==99, description
+	replace icd10desc1 = icd10_CM if ICD10_error==99
+
+	tab ICD10_error
+	tab ICD10_error, nolabel
+
+	replace stCancerICD10Code = "" if ICD10_error >=4 
+
+	* sanity check
+	drop ICD10_error
+	icd10 check stCancerICD10Code, list
+	icd10 check stCancerICD10Code, generate(ICD10_error)
+
+	* still needs work
+
+	drop icd10_CM
+	list stCancerICD10Code if ICD10_error==4
+	icd10cm generate icd10_CM = stCancerICD10Code if ICD10_error==4, description
+	replace icd10desc1 = icd10_CM if ICD10_error==4
+
+	tab ICD10_error
+
+	drop icd10_CM
+	list stCancerICD10Code if ICD10_error==99
+	icd10cm generate icd10_CM = stCancerICD10Code if ICD10_error==99, description
+	replace icd10desc1 = icd10_CM if ICD10_error==99
+
+
+	replace stCancerICD10Code = "" if ICD10_error >=4 
+
+	* final sanity check
+	drop ICD10_error
+	icd10 check stCancerICD10Code, list
+	icd10 check stCancerICD10Code, generate(ICD10_error)
+
+	icd10 generate icd10desc = stCancerICD10Code, description end
+	rename stCancerICD10Code cancer_icd10
+	label variable cancer_icd10 "ICD10 code for first cancer"
+	drop ICD10_error
+
+	replace icd10desc = icd10desc1 if missing(icd10desc)
+	drop icd10desc1 icd10_CM stCancerICD9Code1
+
+	label variable icd10desc "description of ICD10 cancer codes"
+	label variable icd9desc "description of ICD9 cancer codes"
+	label variable cancer_age "age at cancer diagnosis"
+
+	replace cancer = 1 if !missing(icd10desc)
+
+	* Xolair
+	gen xolair = 0
+	replace xolair = 1 if!missing(stXolairGenericName)
+	label variable xolair "patient ever received Xolair"
+	drop stXolairStartdate stXolairEnddate stXolairBrandName stXolairGenericName
+
+	save IgE_xolair_AUG_21, replace
+
+	* third sheet
+
+	use distinct_CA_AUG_21.dta, clear
+	describe
+
+	* MRN 
+	label variable MRN "MRN-unique identifier"
+	list MRN if missing(real(MRN))
+	rename MRN MRN_str
+	destring MRN_str, gen(MRN)
+	drop MRN_str
+	* EMPI
+	drop EMPI
+
+	* DX_NAME
+	label variable DX_NAME "cancer type"
+
+	* ICD9_CODES
+
+	rename ICD9_Codes stCancerICD9Code
+
+	* stCancerICD9Code
+	icd9 check stCancerICD9Code, list
+	icd9 check stCancerICD9Code, generate(ICD9_error)
+
+	tab ICD9_error
+	tab ICD9_error, nolabel
+
+
+	list stCancerICD9Code if ICD9_error ==1
+	replace stCancerICD9Code = substr(stCancerICD9Code, 1,3) if ICD9_error ==1
+	list stCancerICD9Code if ICD9_error ==2
+	split stCancerICD9Code if ICD9_error ==2, p(,)
+
+	list stCancerICD9Code1 stCancerICD9Code2 stCancerICD9Code3 if ICD9_error==2
+	drop stCancerICD9Code2 stCancerICD9Code3
+	replace stCancerICD9Code = stCancerICD9Code1 if ICD9_error ==2
+	drop stCancerICD9Code1
+
+	list stCancerICD9Code if ICD9_error ==4
+	split stCancerICD9Code if ICD9_error ==4, p(,)
+	drop stCancerICD9Code2
+	replace stCancerICD9Code = stCancerICD9Code1 if ICD9_error==4
+	drop ICD9_error
+
+	* double check corrections
+	icd9 check stCancerICD9Code, list
+	icd9 check stCancerICD9Code, generate(ICD9_error)
+
+	list stCancerICD9Code if ICD9_error
+	replace stCancerICD9Code = "" if ICD9_error
+
+	icd9 generate icd9desc = stCancerICD9Code, description end
+	rename stCancerICD9Code cancer_icd9
+	label variable cancer_icd9 "ICD9 code for first cancer"
+	drop ICD9_error
+
+	drop stCancerICD9Code 
+	rename DX_NAME cancer_type
+	label variable icd9desc "description of ICD9 code"
+
+	* ICD10_CODES
+
+	rename ICD10_Codes stCancerICD10Code
+
+	* Cancer_FirstICD10Codes
+	icd10 check stCancerICD10Code
+	icd10 check stCancerICD10Code, generate(ICD10_error)
+
+	list stCancerICD10Code if ICD10_error==1
+	split stCancerICD10Code if ICD10_error==1, p(,)
+	drop stCancerICD10Code2
+	replace stCancerICD10Code = stCancerICD10Code1 if ICD10_error==1
+	drop stCancerICD10Code1
+
+
+	list stCancerICD10Code if ICD10_error==2
+	split stCancerICD10Code if ICD10_error==2, p(,)
+	drop stCancerICD10Code2
+	replace stCancerICD10Code = stCancerICD10Code1 if ICD10_error==2
+	drop stCancerICD10Code1
+	drop stCancerICD10Code3
+
+	list stCancerICD10Code if ICD10_error==4
+	icd10cm generate icd10desc1 = stCancerICD10Code if ICD10_error==4, description
+
+	list stCancerICD10Code if ICD10_error==7
+	icd10cm generate icd10_CM = stCancerICD10Code if ICD10_error==7, description
+	replace icd10desc1 = icd10_CM if ICD10_error==7
+	drop icd10_CM
+
+	list stCancerICD10Code if ICD10_error==99
+	icd10cm generate icd10_CM = stCancerICD10Code if ICD10_error==99, description
+	replace icd10desc1 = icd10_CM if ICD10_error==99
+
+	tab ICD10_error
+	tab ICD10_error, nolabel
+
+	replace stCancerICD10Code = "" if ICD10_error >=4 
+
+	* sanity check
+	drop ICD10_error
+	icd10 check stCancerICD10Code, list
+	icd10 check stCancerICD10Code, generate(ICD10_error)
+
+	* still needs work
+
+	drop icd10_CM
+	list stCancerICD10Code if ICD10_error==4
+	icd10cm generate icd10_CM = stCancerICD10Code if ICD10_error==4, description
+	replace icd10desc1 = icd10_CM if ICD10_error==4
+
+	tab ICD10_error
+
+	drop icd10_CM
+	list stCancerICD10Code if ICD10_error==99
+	icd10cm generate icd10_CM = stCancerICD10Code if ICD10_error==99, description
+	replace icd10desc1 = icd10_CM if ICD10_error==99
+
+
+	replace stCancerICD10Code = "" if ICD10_error >=4 
+
+	* final sanity check
+	drop ICD10_error
+	icd10 check stCancerICD10Code, list
+	icd10 check stCancerICD10Code, generate(ICD10_error)
+
+	icd10 generate icd10desc = stCancerICD10Code, description end
+	rename stCancerICD10Code cancer_icd10
+	label variable cancer_icd10 "ICD10 code for first cancer"
+	drop ICD10_error
+
+	replace icd10desc = icd10desc1 if missing(icd10desc)
+	drop icd10desc1 icd10_CM stCancerICD10Code4
+
+	label variable icd10desc "description of ICD10 cancer codes"
+	label variable icd9desc "description of ICD9 cancer codes"
+
+	save distinct_CA_AUG_21.dta, replace
+
+	* sheet 4 
+
+	use all_CA_dates_AUG_21, clear
+
+	* MRN 
+	label variable MRN "MRN-unique identifier"
+	list MRN if missing(real(MRN))
+	rename MRN MRN_str
+	destring MRN_str, gen(MRN)
+	drop MRN_str
+
+	* EMPI
+	drop EMPI
+
+	* DX_NAME
+	label variable DX_NAME "cancer type"
+
+	* DX_DATE
+
+	rename DXDate stCancerDXDate
+
+	* stCancerDXDate
+
+	list stCancerDXDate in 1/100
+	split stCancerDXDate
+	drop stCancerDXDate2
+	list stCancerDXDate1 in 1/100
+
+	gen cancer_dx_date = date(stCancerDXDate1, "MDY")
+	format cancer_dx_date %td
+	list cancer_dx_date in 1/100
+	label variable cancer_dx_date "date of cancer diagnosis"
+	drop stCancerDXDate1 stCancerDXDate
+
+
+	* ICD9_CODES
+
+	rename ICD9_Codes stCancerICD9Code
+
+	* stCancerICD9Code
+	icd9 check stCancerICD9Code, list
+	icd9 check stCancerICD9Code, generate(ICD9_error)
+
+	tab ICD9_error
+	tab ICD9_error, nolabel
+
+
+	list stCancerICD9Code if ICD9_error ==1
+	replace stCancerICD9Code = substr(stCancerICD9Code, 1,3) if ICD9_error ==1
+	list stCancerICD9Code if ICD9_error ==2
+	split stCancerICD9Code if ICD9_error ==2, p(,)
+
+	list stCancerICD9Code1 stCancerICD9Code2 stCancerICD9Code3 if ICD9_error==2
+	drop stCancerICD9Code2 stCancerICD9Code3
+	replace stCancerICD9Code = stCancerICD9Code1 if ICD9_error ==2
+	drop stCancerICD9Code1
+
+	list stCancerICD9Code if ICD9_error ==4
+	split stCancerICD9Code if ICD9_error ==4, p(,)
+	drop stCancerICD9Code2
+	replace stCancerICD9Code = stCancerICD9Code1 if ICD9_error==4
+	drop ICD9_error
+
+	* double check corrections
+	icd9 check stCancerICD9Code, list
+	icd9 check stCancerICD9Code, generate(ICD9_error)
+
+	list stCancerICD9Code if ICD9_error
+	replace stCancerICD9Code = "" if ICD9_error
+
+	icd9 generate icd9desc = stCancerICD9Code, description end
+	rename stCancerICD9Code cancer_icd9
+	label variable cancer_icd9 "ICD9 code for first cancer"
+	drop ICD9_error
+
+	drop stCancerICD9Code 
+	rename DX_NAME cancer_type
+	label variable icd9desc "description of ICD9 code"
+
+	* ICD10_CODES
+
+	rename ICD10_Codes stCancerICD10Code
+
+	* Cancer_FirstICD10Codes
+	icd10 check stCancerICD10Code
+	icd10 check stCancerICD10Code, generate(ICD10_error)
+
+	list stCancerICD10Code if ICD10_error==1
+	split stCancerICD10Code if ICD10_error==1, p(,)
+	drop stCancerICD10Code2
+	replace stCancerICD10Code = stCancerICD10Code1 if ICD10_error==1
+	drop stCancerICD10Code1
+
+
+	list stCancerICD10Code if ICD10_error==2
+	split stCancerICD10Code if ICD10_error==2, p(,)
+	drop stCancerICD10Code2
+	replace stCancerICD10Code = stCancerICD10Code1 if ICD10_error==2
+	drop stCancerICD10Code1
+	drop stCancerICD10Code3
+
+	list stCancerICD10Code if ICD10_error==4
+	icd10cm generate icd10desc1 = stCancerICD10Code if ICD10_error==4, description
+
+	list stCancerICD10Code if ICD10_error==7
+	icd10cm generate icd10_CM = stCancerICD10Code if ICD10_error==7, description
+	replace icd10desc1 = icd10_CM if ICD10_error==7
+	drop icd10_CM
+
+	list stCancerICD10Code if ICD10_error==99
+	icd10cm generate icd10_CM = stCancerICD10Code if ICD10_error==99, description
+	replace icd10desc1 = icd10_CM if ICD10_error==99
+
+	tab ICD10_error
+	tab ICD10_error, nolabel
+
+	replace stCancerICD10Code = "" if ICD10_error >=4 
+
+	* sanity check
+	drop ICD10_error
+	icd10 check stCancerICD10Code, list
+	icd10 check stCancerICD10Code, generate(ICD10_error)
+
+	* still needs work
+
+	drop icd10_CM
+	list stCancerICD10Code if ICD10_error==4
+	icd10cm generate icd10_CM = stCancerICD10Code if ICD10_error==4, description
+	replace icd10desc1 = icd10_CM if ICD10_error==4
+
+	tab ICD10_error
+
+	drop icd10_CM
+	list stCancerICD10Code if ICD10_error==99
+	icd10cm generate icd10_CM = stCancerICD10Code if ICD10_error==99, description
+	replace icd10desc1 = icd10_CM if ICD10_error==99
+
+
+	replace stCancerICD10Code = "" if ICD10_error >=4 
+
+	* final sanity check
+	drop ICD10_error
+	icd10 check stCancerICD10Code, list
+	icd10 check stCancerICD10Code, generate(ICD10_error)
+
+	icd10 generate icd10desc = stCancerICD10Code, description end
+	rename stCancerICD10Code cancer_icd10
+	label variable cancer_icd10 "ICD10 code for first cancer"
+	drop ICD10_error
+
+	replace icd10desc = icd10desc1 if missing(icd10desc)
+	drop icd10desc1 icd10_CM stCancerICD10Code4
+
+	label variable icd10desc "description of ICD10 cancer codes"
+	label variable icd9desc "description of ICD9 cancer codes"
+
+	save all_CA_dates_AUG_21, replace
+
+	* sheet 5 
+
+	use all_xolair_AUG_21, clear
+
+	* INNER MERGE FOR DATA SET 2 *
+	
+	use IgE_AUG_21.dta, clear
+	merge m:m MRN using IgE_xolair_AUG_21 /* sheets 1 and 2 */
+	list if _merge==1 /* corresponds to observations with IgE but not the other labs */
+	drop _merge
+	save IgEdata2.dta, replace
+
+* move on to first data set
+
+	use FirstCAXolair.dta, clear
+
+	describe
+
+	* MRN 
+	label variable MRN "MRN-unique identifier"
+	list MRN if missing(real(MRN))
+	rename MRN MRN_str
+	destring MRN_str, gen(MRN)
+	drop MRN_str
+	drop PtName /* no need for PII like this */
+	label variable PtLoc "patient location"
+
+	* CollectDateODBC
+
+	list CollectDateODBC in 1/100
+	replace CollectDateODBC = substr(CollectDateODBC, 1,9)
+	gen collectdate = date(CollectDateODBC, "DMY")
+	format collectdate %td
+	list collectdate in 1/10
+
+	drop CollectDateODBC
+	label variable collectdate "date of IgE collection"
+	drop TestCode
+	count if strpos(ResultText, "<") /* count of IgE levels with "<" character associated. */
+	gen undetectable = strpos(ResultText, "<") & !missing(ResultText)
+	count if undetectable
+	// list if undetectable == 2
+	// replace undetectable=1 if undetectable==2
+	label variable undetectable "undetectable IgE count"
+
+	* ResultText
+	rename ResultText IgE
+	gen IgE_str = subinstr(IgE, "<", "", 1)
+	replace IgE_str = subinstr(IgE_str, ">", "", 1)
+	replace IgE_str = strtrim(IgE_str)
+	drop IgE
+
+	list IgE_str in 1/100
+
+	list IgE_str if missing(real(IgE_str))
+	replace IgE_str = subinstr(IgE_str, ";", "", 1)
+	replace IgE_str = subinstr(IgE_str, "(H)", "", 1)
+	destring IgE_str, generate(IgE)
+	label variable IgE "IgE level"
+	drop IgE_str
+
+	* PatientName
+	drop PatientName
+
+	* Gender
+	tab Gender
+
+	gen male = 1 
+	replace male = 0 if Gender=="Female"
+	replace male = . if Gender=="Unknown"
+	tab Gender male, missing
+	label variable male "male sex"
+	drop Gender
+
+	* Race
+	tab Race
+	encode Race, generate(race_num)
+	tab Race race_num
+	drop Race
+	tab race_num
+	tab race_num, nolabel
+
+	gen race = 11 /* white */
+	replace race = 3 if race_num == 3 /* black */
+	replace race = 2 if race_num == 2 /* asian */
+	replace race = 8 if race_num == 8 | race_num == 1 | race_num ==5 | race_num == 6 | race_num == 7 
+	replace race = . if race_num == 9 | race_num == 10 | race_num == 4
+
+	tab race_num race
+	recode race (2=1) /* Asian */ (3=2) /* Black */ (8=3) /* Other */ (11=4) /* White */
+	label define race_l 1 "Asian" 2 "Black" 3 "Other" 4 "White"
+	label values race race_l
+	label variable race "race of subject"
+	tab race_num race, missing
+	drop race_num
+	 
+	* BIRTH
+	list BIRTH in 1/10
+
+	replace BIRTH = strtrim(BIRTH)
+	replace BIRTH = substr(BIRTH, 1,9)
+	gen dob = date(BIRTH, "DMY")
+	format dob %td
+	list dob in 1/10
+	label variable dob "date of birth"
+	drop BIRTH
+
+	list CurrentAge in 1/10 /* no way that these are accurate */
+	drop CurrentAge
+	gen age = collectdate - dob
+	replace age = floor(age/365.25)
+	sum age
+	count if age < 0 
+	replace age = . if age < 0
+	count if age < 18 /* number of children */
+	label variable age "age at IgE collection"
+
+	* Cancer_FirstDXDate
+	replace Cancer_FirstDXDate = strtrim(Cancer_FirstDXDate)
+	replace Cancer_FirstDXDate = substr(Cancer_FirstDXDate, 1,9)
+	gen cancer_dx_date = date(Cancer_FirstDXDate, "DMY")
+	format cancer_dx_date %td
+	list cancer_dx_date in 1/10
+	label variable cancer_dx_date "date of cancer diagnosis"
+	drop Cancer_FirstDXDate
+
+	gen cancer_age = cancer_dx_date - dob
+	replace cancer_age = floor(cancer_age/365.25)
+	list age cancer_age in 1/50 /* note: cancer_age gives age at diagnosis, but lots of missing values. perhaps collect_age will be better to use */
+	list cancer_age Age_at_Cancer in 1/50 /* note that there is relatively good concordance here */
+	drop Age_at_Cancer
+
+	* Cancer_FirstDXName
+	codebook Cancer_FirstDXName /* lots of missing, corresponding to folks who never got cancer */
+	gen cancer = 0 
+	replace cancer = 1 if Cancer_FirstDXName != ""
+	label variable cancer "did subject have cancer"
+
+	* Cancer_FirstICD9Codes
+	icd9 check Cancer_FirstICD9Codes, list
+	icd9 check Cancer_FirstICD9Codes, generate(ICD9_error)
+	replace Cancer_FirstICD9Codes = substr(Cancer_FirstICD9Codes, 1,5) if ICD9_error >0
+	icd9 check Cancer_FirstICD9Codes, list
+	drop ICD9_error
+	icd9 check Cancer_FirstICD9Codes, generate(ICD9_error)
+	replace Cancer_FirstICD9Codes = substr(Cancer_FirstICD9Codes, 1,3) if ICD9_error>0
+	drop ICD9_error
+
+	icd9 check Cancer_FirstICD9Codes, list
+
+	icd9 generate icd9desc = Cancer_FirstICD9Codes, description end
+	drop Cancer_FirstDXName
+	rename Cancer_FirstICD9Codes cancer_icd9
+	label variable cancer_icd9 "ICD9 code for first cancer"
+
+	* Cancer_FirstICD10Codes
+	icd10 check Cancer_FirstICD10Codes
+	icd10 check Cancer_FirstICD10Codes, generate(ICD10_error)
+	replace Cancer_FirstICD10Codes = substr(Cancer_FirstICD10Codes, 1,3) if ICD10_error == 1
+	gen comma=strpos(Cancer_FirstICD10Codes,",")
+	replace Cancer_FirstICD10Codes = substr(Cancer_FirstICD10Codes,1,comma-1) if ICD10_error >0
+	drop ICD10_error
+	icd10 check Cancer_FirstICD10Codes, generate(ICD10_error)
+
+	list Cancer_FirstICD10Codes ICD10_error if ICD10_error >0 & !missing(ICD10_error)
+	drop comma
+	gen period = strpos(Cancer_FirstICD10Codes,".")
+	replace Cancer_FirstICD10Codes = substr(Cancer_FirstICD10Codes,1,period+1) if ICD10_error >0 & !missing(ICD10_error)
+	drop period ICD10_error
+	icd10 check Cancer_FirstICD10Codes, generate(ICD10_error)
+	list Cancer_FirstICD10Codes ICD10_error if ICD10_error >0 & !missing(ICD10_error)
+	replace Cancer_FirstICD10Codes = "" in 2961
+	replace Cancer_FirstICD10Codes = "C85" in 16284
+	drop ICD10_error
+
+	icd10 check Cancer_FirstICD10Codes
+	icd10 generate icd10desc = Cancer_FirstICD10Codes, description end
+	rename Cancer_FirstICD10Codes cancer_icd10
+	label variable icd10desc "description of ICD10 cancer codes"
+	label variable cancer_icd10 "ICD10 code for first cancer"
+
+	drop Cancer_FirstDepartmentName - Cancer_FirstBillingProvider
+
+	// replace cancer = 1 if !missing(cancer_icd10)
+
+	* Xolair
+	gen xolair = 0
+	replace xolair = 1 if!missing(Xolair_FirstGenericName)
+	label variable xolair "patient ever received Xolair"
+	drop Xolair_FirstStartDate-Xolair_FirstMedicationName
+	label variable cancer_age "age at cancer diagnosis"
+
+	save FirstCAXolair, replace
+
+	* data clean for Igeother
+
+	use Igeother, clear
+	label variable MRN "MRN-unique identifier"
+	list MRN if missing(real(MRN))
+	rename MRN MRN_str
+	destring MRN_str, gen(MRN)
+	drop MRN_str
+	drop PtName /* no need for PII like this */
+
+	* CollectDateODBC is just redundant information, corresponding to when the IgE level was drawn. It is represented in the other data set by variable collectdate
+	drop CollectDateODBC
+
+	* LastIgGDATEbeforeCollectDate
+	replace LastIgGDATEbeforeCollectDate = substr(LastIgGDATEbeforeCollectDate, 1,9)
+	gen IgGdate = date(LastIgGDATEbeforeCollectDate, "DMY")
+	format IgGdate %td
+	list IgGdate LastIgGDATEbeforeCollectDate in 1/10
+	drop LastIgGDATEbeforeCollectDate
+	label variable IgGdate "date of last IgG measurement"
+
+	* LastIgADATEbeforeCollectDate
+	replace LastIgADATEbeforeCollectDate = substr(LastIgADATEbeforeCollectDate, 1,9)
+	gen IgAdate = date(LastIgADATEbeforeCollectDate, "DMY")
+	format IgAdate %td
+	list IgAdate LastIgADATEbeforeCollectDate in 1/10
+	drop LastIgADATEbeforeCollectDate
+	label variable IgAdate "date of last IgA measurement"
+
+	* LastIgMDATEbeforeCollectDate
+	replace LastIgMDATEbeforeCollectDate = substr(LastIgMDATEbeforeCollectDate, 1,9)
+	gen IgMdate = date(LastIgMDATEbeforeCollectDate, "DMY")
+	format IgMdate %td
+	list IgMdate LastIgMDATEbeforeCollectDate in 1/10
+	drop LastIgMDATEbeforeCollectDate
+	label variable IgMdate "date of last IgM measurement"
+
+	* LastWBCDATEbeforeCollectDate
+	replace LastWBCDATEbeforeCollectDate = substr(LastWBCDATEbeforeCollectDate, 1,9)
+	gen WBCdate = date(LastWBCDATEbeforeCollectDate, "DMY")
+	format WBCdate %td
+	list WBCdate LastWBCDATEbeforeCollectDate in 1/10
+	drop LastWBCDATEbeforeCollectDate
+	label variable WBCdate "date of last WBC measurement"
+
+	* LastIgGRESULTbeforeCollectDa
+	rename LastIgGRESULTbeforeCollectDa IgG
+	replace IgG = "0" if strpos(IgG, "<") & !missing(IgG)
+	// gen IgG_str = subinstr(IgG, "<", "", 1)
+	gen IgG_str = strtrim(IgG)
+	replace IgG_str = subinstr(IgG, ">", "", 1)
+	drop IgG
+	list IgG_str in 1/100
+
+
+	list IgG_str if missing(real(IgG_str))
+	destring IgG_str, generate(IgG) force
+	// list IgG_str IgG if missing(real(IgG_str)) in 1/100
+	drop IgG_str
+	label variable IgG "IgG level"
+
+	* LastIgARESULTbeforeCollectDa
+	rename LastIgARESULTbeforeCollectDa IgA
+	replace IgA = "0" if strpos(IgA, "<") & !missing(IgA)
+	gen IgA_str = strtrim(IgA)
+	replace IgA_str = subinstr(IgA_str, ">", "", 1)
+	drop IgA
+
+	list IgA_str if missing(real(IgA_str))
+	destring IgA_str, generate(IgA) force
+	// list IgA_str IgA if missing(real(IgA_str)) in 1/100
+	drop IgA_str
+	label variable IgA "IgA level"
+
+	* LastIgMRESULTbeforeCollectDa 
+	rename LastIgMRESULTbeforeCollectDa IgM
+	replace IgM = "0" if strpos(IgM, "<") & !missing(IgM)
+	gen IgM_str = strtrim(IgM)
+	replace IgM_str = subinstr(IgM_str, ">", "", 1)
+	drop IgM
+
+	list IgM_str if missing(real(IgM_str))
+	destring IgM_str, generate(IgM) force
+	// list IgM_str IgM if missing(real(IgM_str)) in 1/100
+	drop IgM_str
+	label variable IgM "IgM level"
+
+
+	* LastWBCRESULTbeforeCollectDa 
+	rename LastWBCRESULTbeforeCollectDa WBC
+	replace WBC = "0" if strpos(WBC, "<") & !missing(WBC)
+	gen WBC_str = strtrim(WBC)
+	replace WBC_str = subinstr(WBC_str, ">", "", 1)
+	drop WBC
+
+	list WBC_str if missing(real(WBC_str))
+	destring WBC_str, generate(WBC) force
+	// list WBC_str WBC if missing(real(WBC_str)) in 1/100
+	drop WBC_str
+	label variable WBC "WBC level"
+
+	* HIV 
+	gen HIV = 0
+	replace HIV = 1 if !missing(stEverHIVAIDSDXDate)
+	label variable  HIV "binary for HIV status"
+	drop stEverHIVAIDSDXDate
+
+	* CVID
+	gen CVID = 0
+	replace CVID = 1 if !missing(stEverCVIDDXDate)
+	label variable CVID "binary for CVID status"
+	// drop stEverCVIDDXDate
+
+	rename stEverCVIDDXDate CVIDdxdate
+	replace CVIDdxdate = substr(CVIDdxdate, 1,9)
+	gen CVIDdate = date(CVIDdxdate, "DMY")
+	format CVIDdate %td
+	// list CVIDdate CVIDdxdate
+	drop CVIDdxdate
+	label variable CVIDdate "date of CVID diagnosis"
+
+	* immunodeficiency
+	gen immunodeficiency = 0
+	replace immunodeficiency = 1 if !missing(stEverImmunodeficiencyDXDat)
+	label variable immunodeficiency "binary for immunodeficiency status"
+	drop stEverImmunodeficiencyDXDat
+
+	save Igeother, replace
+
+	* inner merge for data set 1
+
+	use FirstCAXolair, clear
+	merge m:m MRN using Igeother.dta
+	list if _merge==2 /* these correspond to patients who had WBC, IgG, etc, but no IgE level */
+
+	* note, _merge==1 corresponds to folks who had an IgE level but never had WBC, etc drawn. These should be kept
+	list in 1/100 if _merge==1
+	drop _merge
+
+	save IgEdata1, replace
+	
+	
+* next step is to merge IgEdata1 and IgEdata2
+
+use IgEdata1, clear
+merge m:m MRN using IgEdata2
+
+* _merge==1 indicates subjects unique to data set 1
+* _merge==2 indicates subjects unique to data set 2
+* _merge==3 is the overlap - subjects in both
+
+drop _merge
+
+save IgE, replace
+
+
+* merge additional covariates to this combination dataset
+
+use IgE, clear
+
+merge m:m MRN using covariate
+
+* _merge==1 indicates subjects unique to combination data set
+* _merge==2 indicates subjects unique to covariate data set 
+* _merge==3 is the overlap - subjects in both
+
+drop _merge
+save IgEcovariates, replace
+
+use censor, replace
+label variable MRN "MRN-unique identifier"
+list MRN if missing(real(MRN))
+rename MRN MRN_str
+destring MRN_str, gen(MRN)
+drop MRN_str
+save censor, replace
+
+use IgEcovariates, clear
+merge m:m MRN using censor
+
+drop _merge
+save combination, replace
+use combination, clear
+
+use "/Users/johnmcdonnell/Desktop/IgE paper/combination.dta", clear
+*************************************************************************************************************************************************************
+
+*now the datasets are merged 
+
+drop isdup
+duplicates report MRN IgE collectdate
+
+duplicates tag MRN IgE collectdate, gen(isdup)
+
+count if isdup
+drop if isdup>=1
+
+count if missing(IgE)
+drop if missing(IgE)
+
+* repeated subjects in combination data set
+	by MRN collectdate, sort: generate intcount = _N /* generate a count of repetitions of MRN in the dataset */
+	list MRN collectdate IgE intcount in 1/10, sepby(MRN) /* for example, 02902230 is in the data set 5 times */
+	by MRN: generate intIndex = _n
+	list MRN IgE intcount intIndex in 1/15, sepby(MRN) /* the separate IgE measurements in each subject (MRN) are indexed by intIndex */
+	tab intcount
+
+	label variable intcount "count of repetitions of MRN in the data set"
+	label variable intIndex "index of MRN counts separated by subject"
+
+	by MRN: generate last_IgE = IgE[_N]
+	list MRN intIndex intcount IgE last_IgE in 1/20, sepby(MRN)
+
+	by MRN: gen unique_subject = 1 if intIndex==_N /* generates a binary corresponding to last IgE measurement in each subject, thus gives unique subjects*/
+
+	list MRN intIndex intcount IgE last_IgE unique_subject in 1/20, sepby(MRN)
+
+	label variable last_IgE "last IgE measurement for a given subject"
+	label variable unique_subject "unique subject"
+
+	tab unique_subject
+
+	 * high_IgE variable, corresponds to level >1000
+	gen high_IgE = 1 if IgE > 1000 & !missing(IgE)
+	replace high_IgE = 0 if IgE < 1000 
+	label variable high_IgE "IgE level >1000"
+
+* there are a number of variables not useful for this project
+drop PtLoc IgGdate-WBC
+drop WBC2-ASSOC_DX_ICD10Code 
+	
+	gen cancer_type = 0 if cancer == 1
+	replace cancer_type = 1 if strpos(icd9desc, "pap")
+	replace cancer_type = 1 if strpos(icd9desc, "cervix")
+	replace cancer_type = 1 if strpos(icd9desc, "uteri")
+	replace cancer_type = 1 if strpos(icd9desc, "ovary")
+	replace cancer_type = 1 if strpos(icd9desc, "pelvis")
+	replace cancer_type = 1 if strpos(icd9desc, "uterus")
+	replace cancer_type = 1 if strpos(icd9desc, "cervical")
+	replace cancer_type = 1 if strpos(icd9desc, "adnexa")
+	replace cancer_type = 1 if strpos(icd9desc, "vagina")
+	replace cancer_type = 1 if strpos(icd9desc, "ovarian")
+	replace cancer_type = 1 if strpos(icd9desc, "vulva")
+	replace cancer_type = 1 if strpos(icd9desc, "fem")
+	replace cancer_type = 2 if strpos(icd9desc, "leu")
+	replace cancer_type = 2 if strpos(icd9desc, "histioc")
+	replace cancer_type = 2 if strpos(icd9desc, "langerhans")
+	replace cancer_type = 2 if strpos(icd9desc, "masto")
+	replace cancer_type = 2 if strpos(icd9desc, "mast")
+	replace cancer_type = 2 if strpos(icd9desc, "plasma")
+	replace cancer_type = 2 if strpos(icd9desc, "oth imno npl")
+	replace cancer_type = 2 if strpos(icd9desc, "oth varn")
+	replace cancer_type = 2 if strpos(icd9desc, "letter")
+	replace cancer_type = 2 if strpos(icd9desc, "ndr sclr")
+	replace cancer_type = 2 if strpos(icd9desc, "szry")
+	replace cancer_type = 2 if strpos(icd9desc, "sezary")
+	replace cancer_type = 2 if strpos(icd9desc, "macrogl")
+	replace cancer_type = 2 if strpos(icd9desc, "kaposi")
+	replace cancer_type = 2 if strpos(icd9desc, "lk")
+	replace cancer_type = 2 if strpos(icd9desc, "lym")
+	replace cancer_type = 2 if strpos(icd9desc, "hdgk")
+	replace cancer_type = 2 if strpos(icd9desc, "hodgkin")
+	replace cancer_type = 2 if strpos(icd9desc, "burkitt")
+	replace cancer_type = 2 if strpos(icd9desc, "myelo")
+	replace cancer_type = 2 if strpos(icd9desc, "mye")
+	replace cancer_type = 2 if strpos(icd9desc, "mxd celr")
+	replace cancer_type = 3 if strpos(icd9desc, "basal")
+	replace cancer_type = 3 if strpos(icd9desc, "lip")
+	replace cancer_type = 3 if strpos(icd9desc, "nipp")
+	replace cancer_type = 3 if strpos(icd9desc, "dyschromia")
+	replace cancer_type = 3 if strpos(icd9desc, "soft")
+	replace cancer_type = 3 if strpos(icd9desc, "sqam")
+	replace cancer_type = 3 if strpos(icd9desc, "sqm")
+	replace cancer_type = 3 if strpos(icd9desc, "skn")
+	replace cancer_type = 3 if strpos(icd9desc, "mycs")
+	replace cancer_type = 3 if strpos(icd9desc, "vermil")
+	replace cancer_type = 3 if strpos(icd9desc, "mycos")
+	replace cancer_type = 3 if strpos(icd9desc, "bsl")
+	replace cancer_type = 3 if strpos(icd9desc, "squam")
+	replace cancer_type = 3 if strpos(icd9desc, "melan")
+	replace cancer_type = 3 if strpos(icd9desc, "skin")
+	replace cancer_type = 3 if strpos(icd9desc, "scalp")
+	replace cancer_type = 3 if strpos(icd9desc, "basl")
+	replace cancer_type = 4 if strpos(icd9desc, "anal")
+	replace cancer_type = 4 if strpos(icd9desc, "ampulla")
+	replace cancer_type = 4 if strpos(icd9desc, "anus")
+	replace cancer_type = 4 if strpos(icd9desc, "liver")
+	replace cancer_type = 4 if strpos(icd9desc, "dgstv")
+	replace cancer_type = 4 if strpos(icd9desc, "cecum")
+	replace cancer_type = 4 if strpos(icd9desc, "appendix")
+	replace cancer_type = 4 if strpos(icd9desc, "bowel")
+	replace cancer_type = 4 if strpos(icd9desc, "duod")
+	replace cancer_type = 4 if strpos(icd9desc, "ascites")
+	replace cancer_type = 4 if strpos(icd9desc, "abdomin")
+	replace cancer_type = 4 if strpos(icd9desc, "abdomen")
+	replace cancer_type = 4 if strpos(icd9desc, "stomach")
+	replace cancer_type = 4 if strpos(icd9desc, "intrahep")
+	replace cancer_type = 4 if strpos(icd9desc, "hepati")
+	replace cancer_type = 4 if strpos(icd9desc, "extrahep")
+	replace cancer_type = 4 if strpos(icd9desc, "colon")
+	replace cancer_type = 4 if strpos(icd9desc, "gi")
+	replace cancer_type = 4 if strpos(icd9desc, "pancreas")
+	replace cancer_type = 4 if strpos(icd9desc, "pancreat")
+	replace cancer_type = 4 if strpos(icd9desc, "rectum")
+	replace cancer_type = 4 if strpos(icd9desc, "perito")
+	replace cancer_type = 4 if strpos(icd9desc, "esop")
+	replace cancer_type = 5 if strpos(icd9desc, "breast")
+	replace cancer_type = 6 if strpos(icd9desc, "lung")
+	replace cancer_type = 6 if strpos(icd9desc, "tracheal")
+	replace cancer_type = 6 if strpos(icd9desc, "trachea")
+	replace cancer_type = 6 if strpos(icd9desc, "thymus")
+	replace cancer_type = 6 if strpos(icd9desc, "thorax")
+	replace cancer_type = 6 if strpos(icd9desc, "intrathoracic")
+	replace cancer_type = 6 if strpos(icd9desc, "ribs")
+	replace cancer_type = 6 if strpos(icd9desc, "medias")
+	replace cancer_type = 6 if strpos(icd9desc, "bronc")
+	replace cancer_type = 7 if strpos(icd9desc, "oral")
+	replace cancer_type = 7 if strpos(icd9desc, "laryngeal")
+	replace cancer_type = 7 if strpos(icd9desc, "glottis")
+	replace cancer_type = 7 if strpos(icd9desc, "gum")
+	replace cancer_type = 7 if strpos(icd9desc, "larynx")
+	replace cancer_type = 7 if strpos(icd9desc, "hypopharynx")
+	replace cancer_type = 7 if strpos(icd9desc, "salivary")
+	replace cancer_type = 7 if strpos(icd9desc, "tongue")
+	replace cancer_type = 7 if strpos(icd9desc, "mouth")
+	replace cancer_type = 7 if strpos(icd9desc, "palate")
+	replace cancer_type = 7 if strpos(icd9desc, "ethmoid")
+	replace cancer_type = 7 if strpos(icd9desc, "head")
+	replace cancer_type = 7 if strpos(icd9desc, "access")
+	replace cancer_type = 7 if strpos(icd9desc, "mandible")
+	replace cancer_type = 7 if strpos(icd9desc, "submand")
+	replace cancer_type = 7 if strpos(icd9desc, "pyriform")
+	replace cancer_type = 7 if strpos(icd9desc, "nasop")
+	replace cancer_type = 7 if strpos(icd9desc, "parotid")
+	replace cancer_type = 7 if strpos(icd9desc, "orop")
+	replace cancer_type = 7 if strpos(icd9desc, "tonsil")
+	replace cancer_type = 7 if strpos(icd9desc, "epigl")
+	replace cancer_type = 8 if strpos(icd9desc, "prostate")
+	replace cancer_type = 8 if strpos(icd9desc, "genital")
+	replace cancer_type = 8 if strpos(icd9desc, "urethra")
+	replace cancer_type = 8 if strpos(icd9desc, "penis")
+	replace cancer_type = 8 if strpos(icd9desc, "ureter")
+	replace cancer_type = 8 if strpos(icd9desc, "testicular")
+	replace cancer_type = 8 if strpos(icd9desc, "scrotum")
+	replace cancer_type = 8 if strpos(icd9desc, "urinary")
+	replace cancer_type = 8 if strpos(icd9desc, "test")
+	replace cancer_type = 8 if strpos(icd9desc, "prostatic")
+	replace cancer_type = 9 if strpos(icd9desc, "renal")
+	replace cancer_type = 9 if strpos(icd9desc, "bladder")
+	replace cancer_type = 9 if strpos(icd9desc, "kidney")
+	replace cancer_type = 10 if strpos(icd9desc, "nerv")
+	replace cancer_type = 10 if strpos(icd9desc, "cereb")
+	replace cancer_type = 10 if strpos(icd9desc, "eye")
+	replace cancer_type = 10 if strpos(icd9desc, "parietal")
+	replace cancer_type = 10 if strpos(icd9desc, "retina")
+	replace cancer_type = 10 if strpos(icd9desc, "brain")
+	replace cancer_type = 10 if strpos(icd9desc, "spinal")
+	replace cancer_type = 10 if strpos(icd9desc, "merkel")
+	replace cancer_type = 10 if strpos(icd9desc, "choroid")
+	replace cancer_type = 10 if strpos(icd9desc, "frontal lob")
+	replace cancer_type = 10 if strpos(icd9desc, "conjunc")
+	replace cancer_type = 11 if strpos(icd9desc, "thyr")
+	replace cancer_type = 11 if strpos(icd9desc, "crcnd")
+	replace cancer_type = 11 if strpos(icd9desc, "endo")
+	replace cancer_type = 11 if strpos(icd9desc, "crcnoid")
+	replace cancer_type = 12 if strpos(icd9desc, "bone")
+	replace cancer_type = 12 if strpos(icd9desc, "verte")
+	replace cancer_type = 12 if strpos(icd9desc, "retclsrc")
+	replace cancer_type = 12 if strpos(icd9desc, "reticulosar")
+	replace cancer_type = 13 if strpos(icd9desc, "neoplasm") & cancer_type==0
+	replace cancer_type = 13 if strpos(icd9desc, "ca") & cancer_type==0
+	replace cancer_type = 13 if strpos(icd9desc, "malig") & cancer_type==0
+
+	tab icd9desc if cancer_type == 0
+
+	* remainder of these aren't really cancers we can specify
+
+	label define cancer_type_l 1 "gynecologic" 2 "hematologic" 3 "skin" 4 "GI" 5 "breast" 6 "thoracic" 7 "ENT" 8 "urological" 9 "renal" 10 "nervous" 11 "endocrine" 12 "orthopedic" 13 "other", replace
+	label values cancer_type cancer_type_l
+	replace cancer_type = 1 if strpos(icd10desc, "pap")
+	replace cancer_type = 1 if strpos(icd10desc, "cervix")
+	replace cancer_type = 1 if strpos(icd10desc, "uteri")
+	replace cancer_type = 1 if strpos(icd10desc, "ovary")
+	replace cancer_type = 1 if strpos(icd10desc, "pelvis")
+	replace cancer_type = 1 if strpos(icd10desc, "uterus")
+	replace cancer_type = 1 if strpos(icd10desc, "cervical")
+	replace cancer_type = 1 if strpos(icd10desc, "vagina")
+	replace cancer_type = 1 if strpos(icd10desc, "ovarian")
+	replace cancer_type = 1 if strpos(icd10desc, "vulva")
+	replace cancer_type = 1 if strpos(icd10desc, "fem")
+	replace cancer_type = 2 if strpos(icd10desc, "leu")
+	replace cancer_type = 2 if strpos(icd10desc, "histioc")
+	replace cancer_type = 2 if strpos(icd10desc, "langerhans")
+	replace cancer_type = 2 if strpos(icd10desc, "heavy chain")
+	replace cancer_type = 2 if strpos(icd10desc, "masto")
+	replace cancer_type = 2 if strpos(icd10desc, "mast")
+	replace cancer_type = 2 if strpos(icd10desc, "Heavy")
+	replace cancer_type = 2 if strpos(icd10desc, "Malignant immunoproliferative")
+	replace cancer_type = 2 if strpos(icd10desc, "plasma")
+	replace cancer_type = 2 if strpos(icd10desc, "oth imno npl")
+	replace cancer_type = 2 if strpos(icd10desc, "oth varn")
+	replace cancer_type = 2 if strpos(icd10desc, "letter")
+	replace cancer_type = 2 if strpos(icd10desc, "ndr sclr")
+	replace cancer_type = 2 if strpos(icd10desc, "szry")
+	replace cancer_type = 2 if strpos(icd10desc, "sezary")
+	replace cancer_type = 2 if strpos(icd10desc, "macrogl")
+	replace cancer_type = 2 if strpos(icd10desc, "kaposi")
+	replace cancer_type = 2 if strpos(icd10desc, "lk")
+	replace cancer_type = 2 if strpos(icd10desc, "lym")
+	replace cancer_type = 2 if strpos(icd10desc, "hdgk")
+	replace cancer_type = 2 if strpos(icd10desc, "hodgkin")
+	replace cancer_type = 2 if strpos(icd10desc, "burkitt")
+	replace cancer_type = 2 if strpos(icd10desc, "myelo")
+	replace cancer_type = 2 if strpos(icd10desc, "mye")
+	replace cancer_type = 2 if strpos(icd10desc, "mxd celr")
+	replace cancer_type = 3 if strpos(icd10desc, "basal")
+	replace cancer_type = 3 if strpos(icd10desc, "lip")
+	replace cancer_type = 3 if strpos(icd10desc, "nipp")
+	replace cancer_type = 3 if strpos(icd10desc, "dyschromia")
+	replace cancer_type = 3 if strpos(icd10desc, "soft")
+	replace cancer_type = 3 if strpos(icd10desc, "sqam")
+	replace cancer_type = 3 if strpos(icd10desc, "sqm")
+	replace cancer_type = 3 if strpos(icd10desc, "skn")
+	replace cancer_type = 3 if strpos(icd10desc, "mycs")
+	replace cancer_type = 3 if strpos(icd10desc, "vermil")
+	replace cancer_type = 3 if strpos(icd10desc, "mycos")
+	replace cancer_type = 3 if strpos(icd10desc, "bsl")
+	replace cancer_type = 3 if strpos(icd10desc, "squam")
+	replace cancer_type = 3 if strpos(icd10desc, "melan")
+	replace cancer_type = 3 if strpos(icd10desc, "skin")
+	replace cancer_type = 3 if strpos(icd10desc, "scalp")
+	replace cancer_type = 3 if strpos(icd10desc, "basl")
+	replace cancer_type = 4 if strpos(icd10desc, "anal")
+	replace cancer_type = 4 if strpos(icd10desc, "anus")
+	replace cancer_type = 4 if strpos(icd10desc, "liver")
+	replace cancer_type = 4 if strpos(icd10desc, "dgstv")
+	replace cancer_type = 4 if strpos(icd10desc, "cecum")
+	replace cancer_type = 4 if strpos(icd10desc, "appendix")
+	replace cancer_type = 4 if strpos(icd10desc, "bowel")
+	replace cancer_type = 4 if strpos(icd10desc, "duod")
+	replace cancer_type = 4 if strpos(icd10desc, "ascites")
+	replace cancer_type = 4 if strpos(icd10desc, "abdomin")
+	replace cancer_type = 4 if strpos(icd10desc, "abdomen")
+	replace cancer_type = 4 if strpos(icd10desc, "stomach")
+	replace cancer_type = 4 if strpos(icd10desc, "intrahep")
+	replace cancer_type = 4 if strpos(icd10desc, "hepati")
+	replace cancer_type = 4 if strpos(icd10desc, "extrahep")
+	replace cancer_type = 4 if strpos(icd10desc, "colon")
+	replace cancer_type = 4 if strpos(icd10desc, "pancreas")
+	replace cancer_type = 4 if strpos(icd10desc, "pancreat")
+	replace cancer_type = 4 if strpos(icd10desc, "rectum")
+	replace cancer_type = 4 if strpos(icd10desc, "perito")
+	replace cancer_type = 4 if strpos(icd10desc, "esop")
+	replace cancer_type = 5 if strpos(icd10desc, "breast")
+	replace cancer_type = 6 if strpos(icd10desc, "lung")
+	replace cancer_type = 6 if strpos(icd10desc, "tracheal")
+	replace cancer_type = 6 if strpos(icd10desc, "trachea")
+	replace cancer_type = 6 if strpos(icd10desc, "thymus")
+	replace cancer_type = 6 if strpos(icd10desc, "thorax")
+	replace cancer_type = 6 if strpos(icd10desc, "ribs")
+	replace cancer_type = 6 if strpos(icd10desc, "medias")
+	replace cancer_type = 6 if strpos(icd10desc, "bronc")
+	replace cancer_type = 7 if strpos(icd10desc, "oral")
+	replace cancer_type = 7 if strpos(icd10desc, "laryngeal")
+	replace cancer_type = 7 if strpos(icd10desc, "glottis")
+	replace cancer_type = 7 if strpos(icd10desc, "gum")
+	replace cancer_type = 7 if strpos(icd10desc, "larynx")
+	replace cancer_type = 7 if strpos(icd10desc, "tongue")
+	replace cancer_type = 7 if strpos(icd10desc, "mouth")
+	replace cancer_type = 7 if strpos(icd10desc, "palate")
+	replace cancer_type = 7 if strpos(icd10desc, "ethmoid")
+	replace cancer_type = 7 if strpos(icd10desc, "head")
+	replace cancer_type = 7 if strpos(icd10desc, "access")
+	replace cancer_type = 7 if strpos(icd10desc, "mandible")
+	replace cancer_type = 7 if strpos(icd10desc, "submand")
+	replace cancer_type = 7 if strpos(icd10desc, "pyriform")
+	replace cancer_type = 7 if strpos(icd10desc, "nasop")
+	replace cancer_type = 7 if strpos(icd10desc, "parotid")
+	replace cancer_type = 7 if strpos(icd10desc, "orop")
+	replace cancer_type = 7 if strpos(icd10desc, "tonsil")
+	replace cancer_type = 7 if strpos(icd10desc, "epigl")
+	replace cancer_type = 8 if strpos(icd10desc, "prostate")
+	replace cancer_type = 8 if strpos(icd10desc, "genital")
+	replace cancer_type = 8 if strpos(icd10desc, "urethra")
+	replace cancer_type = 8 if strpos(icd10desc, "penis")
+	replace cancer_type = 8 if strpos(icd10desc, "ureter")
+	replace cancer_type = 8 if strpos(icd10desc, "testicular")
+	replace cancer_type = 8 if strpos(icd10desc, "scrotum")
+	replace cancer_type = 8 if strpos(icd10desc, "urinary")
+	replace cancer_type = 8 if strpos(icd10desc, "test")
+	replace cancer_type = 8 if strpos(icd10desc, "prostatic")
+	replace cancer_type = 9 if strpos(icd10desc, "renal")
+	replace cancer_type = 9 if strpos(icd10desc, "bladder")
+	replace cancer_type = 9 if strpos(icd10desc, "kidney")
+	replace cancer_type = 10 if strpos(icd10desc, "nerv")
+	replace cancer_type = 10 if strpos(icd10desc, "cereb")
+	replace cancer_type = 10 if strpos(icd10desc, "eye")
+	replace cancer_type = 10 if strpos(icd10desc, "parietal")
+	replace cancer_type = 10 if strpos(icd10desc, "retina")
+	replace cancer_type = 10 if strpos(icd10desc, "brain")
+	replace cancer_type = 10 if strpos(icd10desc, "merkel")
+	replace cancer_type = 10 if strpos(icd10desc, "choroid")
+	replace cancer_type = 10 if strpos(icd10desc, "frontal lob")
+	replace cancer_type = 10 if strpos(icd10desc, "conjunc")
+	replace cancer_type = 11 if strpos(icd10desc, "thyr")
+	replace cancer_type = 11 if strpos(icd10desc, "crcnd")
+	replace cancer_type = 11 if strpos(icd10desc, "endo")
+	replace cancer_type = 11 if strpos(icd10desc, "crcnoid")
+	replace cancer_type = 12 if strpos(icd10desc, "bone")
+	replace cancer_type = 12 if strpos(icd10desc, "verte")
+	replace cancer_type = 12 if strpos(icd10desc, "retclsrc")
+	replace cancer_type = 12 if strpos(icd10desc, "reticulosar")
+	replace cancer_type = 13 if strpos(icd10desc, "neoplasm") & cancer_type==0
+	replace cancer_type = 13 if strpos(icd10desc, "ca") & cancer_type==0
+	replace cancer_type = 13 if strpos(icd10desc, "malig") & cancer_type==0
+
+	tab icd10desc if cancer_type == 0
+
+	replace cancer_type = . if cancer_type == 0
+
+************************************************************************************************************************************************************
+*carrying observations down
+
+** BMI
+
+list BMI in 1/500, sepby(MRN)
+by MRN: replace BMI = BMI[_n-1] if missing(BMI)
+by MRN: replace BMI = BMI[_n+1] if missing(BMI)
+
+** smoking
+
+* all coded as strings
+
+tab Smoking_str, missing
+
+* generate smokers, former smokers, unknowns
+
+gen smoking = 0
+
+replace smoking = 1 if Smoking_str=="Current Every Day Smoker" | Smoking_str=="Current Some Day Smoker" | /// 
+Smoking_str=="Heavy Tobacco Smoker" | Smoking_str=="Light Tobacco Smoker" 
+
+replace smoking = 2 if Smoking_str=="Former Smoker" 
+
+replace smoking = 0 if Smoking_str=="Never Smoker" | Smoking_str=="Passive Smoke Exposure - Never Smoker"
+
+replace smoking = . if Smoking_str=="Never Assessed" | Smoking_str==""
+
+tab Smoking_str smoking, missing
+
+drop Smoking_str
+
+label define smoking_l 0 "nonsmoker" 1 "current smoker" 2 "former smoker"
+label values smoking smoking_l
+
+list smoking in 1/500, sepby(MRN)
+by MRN: replace smoking = smoking[_n-1] if missing(smoking)
+by MRN: replace smoking = smoking[_n+1] if missing(smoking)
+
+* HIV
+
+list MRN HIV in 500/700, sepby(MRN)
+by MRN: replace HIV = HIV[_n-1] if missing(HIV)
+by MRN: replace HIV = HIV[_n+1] if missing(HIV)
+
+list MRN HIV in 500/700, sepby(MRN)
+
+* CVID
+
+list MRN CVID in 500/700, sepby(MRN)
+by MRN: replace CVID = CVID[_n-1] if missing(CVID)
+by MRN: replace CVID = CVID[_n+1] if missing(CVID)
+
+list MRN CVID in 500/700, sepby(MRN)
+
+* CVID
+
+list MRN immunodeficiency in 500/700, sepby(MRN)
+by MRN: replace immunodeficiency = immunodeficiency[_n-1] if missing(immunodeficiency)
+by MRN: replace immunodeficiency = immunodeficiency[_n+1] if missing(immunodeficiency)
+
+list MRN immunodeficiency in 500/700, sepby(MRN)
+
+* age
+
+sort MRN collectdate
+list MRN age in 500/700, sepby(MRN)
+by MRN: replace age = age[_n-1] if missing(age)
+by MRN: replace age = age[_n+1] if missing(age)
+
+list MRN age in 500/700, sepby(MRN)
+
+
+* male
+
+list MRN male in 500/700, sepby(MRN)
+by MRN: replace male = male[_n-1] if missing(male)
+by MRN: replace male = male[_n+1] if missing(male)
+
+list MRN male in 500/700, sepby(MRN)
+
+* race
+
+list MRN race in 500/700, sepby(MRN)
+by MRN: replace race = race[_n-1] if missing(race)
+by MRN: replace race = race[_n+1] if missing(race)
+
+list MRN race in 500/700, sepby(MRN)
+
+* cancer
+
+sort MRN collectdate
+list MRN cancer in 500/700, sepby(MRN)
+by MRN: replace cancer = cancer[_n-1] if missing(cancer)
+by MRN: replace cancer = cancer[_n+1] if missing(cancer) & cancer[_n+1]==0
+
+list MRN cancer in 500/700, sepby(MRN)
+
+* Xolair
+
+list MRN xolair in 500/700, sepby(MRN)
+by MRN: replace xolair = xolair[_n-1] if missing(xolair)
+by MRN: replace xolair = xolair[_n+1] if missing(xolair)
+
+* change IgE <3 to undetectable
+replace undetectable = 1 if IgE <3
+replace IgE =0 if undetectable==1
+
+save IgE_data_whole, replace
+use IgE_data_whole, clear
