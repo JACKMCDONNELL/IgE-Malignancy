@@ -203,19 +203,19 @@ sum study_time, detail
 replace last_contact_date = collectdate if study_time <0 & study_time >= -0.1 /* this fixes folks where the last contact date and IgE date were within days of each other */
 
 count if study_time < 0 
-list MRN death_date last_contact_date IgE collectdate event_date study_time if study_time < 0 
+list death_date last_contact_date IgE collectdate event_date study_time if study_time < 0 
 
-replace collectdate = td(23oct2019) if MRN==87844501
-replace last_contact_date = td(25jun2020) if MRN==87666800
-replace collectdate = td(08jan2020) if MRN==87522513
-drop if MRN==87522513 /* kid */
-replace last_contact_date = td(11feb2020) if MRN==87457001
-replace collectdate = td(10feb2020) if MRN==87457001
-replace collectdate = td(03jul2019) if MRN==87352407
-drop if MRN==87352407 /* kid */
-drop if MRN==87338329 /* kid */
-drop if MRN==87666800 /* kid */
-replace collectdate = td(03jul2019) if MRN==87352407
+replace collectdate = td(23oct2019) if MRN==x
+replace last_contact_date = td(25jun2020) if MRN==x
+replace collectdate = td(08jan2020) if MRN==x
+drop if MRN==x /* kid */
+replace last_contact_date = td(11feb2020) if MRN==x
+replace collectdate = td(10feb2020) if MRN==x
+replace collectdate = td(03jul2019) if MRN==x
+drop if MRN==x /* kid */
+drop if MRN==x /* kid */
+drop if MRN==x /* kid */
+replace collectdate = td(03jul2019) if MRN==x
 
 count if study_time < 0 & missing(age)
 list MRN death_date last_contact_date IgE collectdate event_date study_time if study_time < 0 & missing(age)
@@ -223,68 +223,68 @@ drop if study_time < 0 & missing(age) /* all kids from Florida, shouldn't be in 
 count if study_time < 0
 
 list MRN death_date last_contact_date IgE collectdate event_date study_time if study_time < 0 
-replace collectdate = td(07nov2016) if MRN==87057200
-replace collectdate = td(16dec2016) if MRN==87056448
-replace collectdate = td(18may2016) if MRN==87055130
-replace collectdate = td(08jan2018) if MRN==87047556
-replace collectdate = td(27oct2017) if MRN==87015034
-replace collectdate = td(20oct2016) if MRN==87003353
-replace collectdate = td(02nov2017) if MRN==86990649
-replace collectdate = td(17feb2017) if MRN==86975559
-replace collectdate = td(01apr2016) if MRN==86975307
-replace collectdate = td(01apr2016) if MRN==86968824
-replace collectdate = td(09aug2017) if MRN==86959578
-replace collectdate = td(05dec2016) if MRN==86958820
-replace collectdate = td(03may2016) if MRN==86951087
-replace collectdate = td(12sep2017) if MRN==86943015
-replace collectdate = td(28jan2016) if MRN==86931951
-replace collectdate = td(17aug2016) if MRN==86928861
-replace collectdate = td(14jan2016) if MRN==86915845
-replace collectdate = td(08sep2016) if MRN==86869429
-replace collectdate = td(09jun2016) if MRN==86863377
-replace collectdate = td(10mar2016) if MRN==86858746
-replace collectdate = td(16mar2016) if MRN==86852283
-replace collectdate = td(03aug2016) if MRN==86968824
-replace collectdate = td(04may2016) if MRN==85535500
-replace collectdate = td(18apr2016) if MRN==85515752
-replace collectdate=death_date if MRN==84010964
-replace collectdate = td(30dec2016) if MRN==84001253
-replace collectdate = td(16aug2017) if MRN==83975077
-replace collectdate = td(01mar2017) if MRN==83869167
-replace collectdate=death_date if MRN==84010964
-replace last_contact_date = td(30dec2016) if MRN==84001253
-replace collectdate = td(09aug2016) if MRN==82928766
-replace collectdate = td(03dec2015) if MRN==81858187
-replace collectdate=death_date if MRN==78150998
-replace last_contact_date=death_date if MRN==78150998
-replace last_contact_date=death_date if MRN==77697136
-replace collectdate=death_date if MRN==77697136
-replace collectdate=death_date if MRN==75862547
-replace last_contact_date=death_date if MRN==75862547
-replace collectdate=death_date if MRN==75862547
-replace death_date = . if MRN==72102967 /* incorrect death date */
-replace collectdate = td(29aug2016) if MRN==70687844 
-replace collectdate = td(01dec2017) if MRN==59573713 
-replace death_date = . if MRN==56533044 /* incorrect death date */
-replace last_contact_date=death_date if MRN==49441681
-replace collectdate=death_date if MRN==49441681
-replace death_date = . if MRN==49418221 /* not dead */
-replace collectdate = td(30jan2018) if MRN==46586077 
-replace death_date=td(22jun2006) if MRN==36035170 /* wrong death date */
-replace last_contact_date=death_date if MRN==36035170 
-replace collectdate = td(08dec2017) if MRN==30875974
-replace collectdate = td(06apr2017) if MRN==30485203
-replace last_contact_date=death_date if MRN==29589208
-replace collectdate=death_date if MRN==29589208
-replace collectdate=last_contact_date if MRN==27964648
-drop if MRN==27791786 /* no information, no IgE */
-drop if MRN==27386962 /* no information, no IgE */
-replace collectdate = td(14nov2014) if MRN==19952142 
-replace death_date = . if MRN==19732096 /* dead at unknown time */
-replace death_date = . if MRN==11398375 /* dead at unknown time */
-replace collectdate = last_contact_date if MRN==36562374 
-replace collectdate = td(25Jul2012) if MRN==17494589
-replace collectdate = td(14Mar2017) if MRN==16010880
+replace collectdate = td(07nov2016) if MRN==x
+replace collectdate = td(16dec2016) if MRN==x
+replace collectdate = td(18may2016) if MRN==x
+replace collectdate = td(08jan2018) if MRN==x
+replace collectdate = td(27oct2017) if MRN==x
+replace collectdate = td(20oct2016) if MRN==x
+replace collectdate = td(02nov2017) if MRN==x
+replace collectdate = td(17feb2017) if MRN==x
+replace collectdate = td(01apr2016) if MRN==x
+replace collectdate = td(01apr2016) if MRN==x
+replace collectdate = td(09aug2017) if MRN==x
+replace collectdate = td(05dec2016) if MRN==x
+replace collectdate = td(03may2016) if MRN==x
+replace collectdate = td(12sep2017) if MRN==x
+replace collectdate = td(28jan2016) if MRN==x
+replace collectdate = td(17aug2016) if MRN==x
+replace collectdate = td(14jan2016) if MRN==x
+replace collectdate = td(08sep2016) if MRN==x
+replace collectdate = td(09jun2016) if MRN==x
+replace collectdate = td(10mar2016) if MRN==x
+replace collectdate = td(16mar2016) if MRN==x
+replace collectdate = td(03aug2016) if MRN==x
+replace collectdate = td(04may2016) if MRN==x
+replace collectdate = td(18apr2016) if MRN==x
+replace collectdate=death_date if MRN==x
+replace collectdate = td(30dec2016) if MRN==x
+replace collectdate = td(16aug2017) if MRN==x
+replace collectdate = td(01mar2017) if MRN==x
+replace collectdate=death_date if MRN==x
+replace last_contact_date = td(30dec2016) if MRN==x
+replace collectdate = td(09aug2016) if MRN==x
+replace collectdate = td(03dec2015) if MRN==x
+replace collectdate=death_date if MRN==x
+replace last_contact_date=death_date if MRN==x
+replace last_contact_date=death_date if MRN==x
+replace collectdate=death_date if MRN==x
+replace collectdate=death_date if MRN==x
+replace last_contact_date=death_date if MRN==x
+replace collectdate=death_date if MRN==x
+replace death_date = . if MRN==x /* incorrect death date */
+replace collectdate = td(29aug2016) if MRN==x 
+replace collectdate = td(01dec2017) if MRN==x 
+replace death_date = . if MRN==x /* incorrect death date */
+replace last_contact_date=death_date if MRN==x
+replace collectdate=death_date if MRN==x
+replace death_date = . if MRN==x /* not dead */
+replace collectdate = td(30jan2018) if MRN==x 
+replace death_date=td(22jun2006) if MRN==x /* wrong death date */
+replace last_contact_date=death_date if MRN==x 
+replace collectdate = td(08dec2017) if MRN==x
+replace collectdate = td(06apr2017) if MRN==x
+replace last_contact_date=death_date if MRN==x
+replace collectdate=death_date if MRN==x
+replace collectdate=last_contact_date if MRN==x
+drop if MRN==x /* no information, no IgE */
+drop if MRN==x /* no information, no IgE */
+replace collectdate = td(14nov2014) if MRN==x 
+replace death_date = . if MRN==x /* dead at unknown time */
+replace death_date = . if MRN==x /* dead at unknown time */
+replace collectdate = last_contact_date if MRN==x 
+replace collectdate = td(25Jul2012) if MRN==x
+replace collectdate = td(14Mar2017) if MRN==x
 
 * interim code to update list *
 drop study_time event event_date
@@ -784,41 +784,41 @@ count if heme_type==0
 * per Hsieh recommendations in email from 5/12
 list MRN icd9desc icd10desc if heme_type==0
 
-replace heme_type = 6 if MRN==5527643
-replace heme_type = 2 if MRN==11911536
-replace heme_type = 2 if MRN==16211109
-replace heme_type =. if MRN==20011750 /* history of cancer, should be excluded */
-replace heme_type =7 if MRN==18906112 /* mast cell */
-replace heme_type = 1 if MRN==20669306 
-replace heme_type =. if MRN==20731087 /* history of cancer, should be excluded */
-replace heme_type = 6 if MRN==21726036 
-replace heme_type = 3 if MRN==22212397
-replace heme_type = 6 if MRN==23900114
-replace heme_type = 8 if MRN==25039700
-replace heme_type = 3 if MRN==27597939
-replace heme_type = 3 if MRN==27743714
-replace heme_type =. if MRN==27991882 /* pleural, not heme, malignancy */
-replace heme_type = 6 if MRN==28141246
-replace heme_type = 3 if MRN==30110170
-replace heme_type = 8 if MRN==30667336
-replace heme_type =7 if MRN==32031943 /* mast cell */
-replace heme_type = 6 if MRN==38880527
-replace heme_type =. if MRN==39955318 /* pleural, not heme, malignancy */
-replace heme_type = 1 if MRN==40846158 
-replace heme_type = 6 if MRN==42951978
-replace heme_type = 8 if MRN==43499270
-replace heme_type = 5 if MRN==47436192
-replace heme_type = 3 if MRN==48593410
-replace heme_type =. if MRN==48665969 /* vascular, not heme, malignancy */
-replace heme_type = 8 if MRN==50683460
-replace heme_type = 3 if MRN==50908984
-replace heme_type = 1 if MRN==53118151 
-replace heme_type = 1 if MRN==53155154 
-replace heme_type =7 if MRN==56555293 /* mast cell */
-replace heme_type = 3 if MRN==60275912
-replace heme_type = 6 if MRN==73758513
-replace heme_type = 8 if MRN==76649073
-replace heme_type = 3 if MRN==80064888
+replace heme_type = 6 if MRN==x
+replace heme_type = 2 if MRN==x
+replace heme_type = 2 if MRN==x
+replace heme_type =. if MRN==x /* history of cancer, should be excluded */
+replace heme_type =7 if MRN==x /* mast cell */
+replace heme_type = 1 if MRN==x 
+replace heme_type =. if MRN==x /* history of cancer, should be excluded */
+replace heme_type = 6 if MRN==x 
+replace heme_type = 3 if MRN==x
+replace heme_type = 6 if MRN==x
+replace heme_type = 8 if MRN==x
+replace heme_type = 3 if MRN==x
+replace heme_type = 3 if MRN==x
+replace heme_type =. if MRN==x /* pleural, not heme, malignancy */
+replace heme_type = 6 if MRN==x
+replace heme_type = 3 if MRN==x
+replace heme_type = 8 if MRN==x
+replace heme_type =7 if MRN==x /* mast cell */
+replace heme_type = 6 if MRN==x
+replace heme_type =. if MRN==x /* pleural, not heme, malignancy */
+replace heme_type = 1 if MRN==x 
+replace heme_type = 6 if MRN==x
+replace heme_type = 8 if MRN==x
+replace heme_type = 5 if MRN==x
+replace heme_type = 3 if MRN==x
+replace heme_type =. if MRN==x /* vascular, not heme, malignancy */
+replace heme_type = 8 if MRN==x
+replace heme_type = 3 if MRN==x
+replace heme_type = 1 if MRN==x 
+replace heme_type = 1 if MRN==x 
+replace heme_type =7 if MRN==x /* mast cell */
+replace heme_type = 3 if MRN==x
+replace heme_type = 6 if MRN==x
+replace heme_type = 8 if MRN==x
+replace heme_type = 3 if MRN==x
 
 save hematologic, replace
 
@@ -1007,8 +1007,8 @@ capture log close
 
 use demographics_table_file, clear
 
-replace cancer =0 if MRN==20011750 /* history of cancer, should be excluded */
-replace cancer =0 if MRN==20731087 /* history of cancer, should be excluded */
+replace cancer =0 if MRN==x /* history of cancer, should be excluded */
+replace cancer =0 if MRN==x /* history of cancer, should be excluded */
 
 
 // baselinetable cancer(value(1)) BMI_category undetectable(value(1)) smoking HIV(value(1)) CVID(value(1)) immunodeficiency(value(1)) ///
@@ -1194,49 +1194,49 @@ count if heme_type==0
 * per Hsieh recommendations in email from 5/12
 list MRN icd9desc icd10desc if heme_type==0
 
-replace heme_type = 6 if MRN==5527643
-replace heme_type = 2 if MRN==11911536
-replace heme_type = 2 if MRN==16211109
-replace heme_type =. if MRN==20011750 /* history of cancer, should be excluded */
-replace heme_type =7 if MRN==18906112 /* mast cell */
-replace heme_type = 1 if MRN==20669306 
-replace heme_type =. if MRN==20731087 /* history of cancer, should be excluded */
-replace heme_type = 6 if MRN==21726036 
-replace heme_type = 3 if MRN==22212397
-replace heme_type = 6 if MRN==23900114
-replace heme_type = 8 if MRN==25039700
-replace heme_type = 3 if MRN==27597939
-replace heme_type = 3 if MRN==27743714
-replace heme_type =. if MRN==27991882 /* pleural, not heme, malignancy */
-replace heme_type = 6 if MRN==28141246
-replace heme_type = 3 if MRN==30110170
-replace heme_type = 8 if MRN==30667336
-replace heme_type =7 if MRN==32031943 /* mast cell */
-replace heme_type = 6 if MRN==38880527
-replace heme_type =. if MRN==39955318 /* pleural, not heme, malignancy */
-replace heme_type = 1 if MRN==40846158 
-replace heme_type = 6 if MRN==42951978
-replace heme_type = 8 if MRN==43499270
-replace heme_type = 5 if MRN==47436192
-replace heme_type = 3 if MRN==48593410
-replace heme_type =. if MRN==48665969 /* vascular, not heme, malignancy */
-replace heme_type = 8 if MRN==50683460
-replace heme_type = 3 if MRN==50908984
-replace heme_type = 1 if MRN==53118151 
-replace heme_type = 1 if MRN==53155154 
-replace heme_type =7 if MRN==56555293 /* mast cell */
-replace heme_type = 3 if MRN==60275912
-replace heme_type = 6 if MRN==73758513
-replace heme_type = 8 if MRN==76649073
-replace heme_type = 3 if MRN==80064888
+replace heme_type = 6 if MRN==x
+replace heme_type = 2 if MRN==x
+replace heme_type = 2 if MRN==x
+replace heme_type =. if MRN==x /* history of cancer, should be excluded */
+replace heme_type =7 if MRN==x /* mast cell */
+replace heme_type = 1 if MRN==x 
+replace heme_type =. if MRN==x /* history of cancer, should be excluded */
+replace heme_type = 6 if MRN==x 
+replace heme_type = 3 if MRN==x
+replace heme_type = 6 if MRN==x
+replace heme_type = 8 if MRN==x
+replace heme_type = 3 if MRN==x
+replace heme_type = 3 if MRN==x
+replace heme_type =. if MRN==x /* pleural, not heme, malignancy */
+replace heme_type = 6 if MRN==x
+replace heme_type = 3 if MRN==x
+replace heme_type = 8 if MRN==x
+replace heme_type =7 if MRN==x /* mast cell */
+replace heme_type = 6 if MRN==x
+replace heme_type =. if MRN==x /* pleural, not heme, malignancy */
+replace heme_type = 1 if MRN==x 
+replace heme_type = 6 if MRN==x
+replace heme_type = 8 if MRN==x
+replace heme_type = 5 if MRN==x
+replace heme_type = 3 if MRN==x
+replace heme_type =. if MRN==x /* vascular, not heme, malignancy */
+replace heme_type = 8 if MRN==x
+replace heme_type = 3 if MRN==x
+replace heme_type = 1 if MRN==x 
+replace heme_type = 1 if MRN==x 
+replace heme_type =7 if MRN==x /* mast cell */
+replace heme_type = 3 if MRN==x
+replace heme_type = 6 if MRN==x
+replace heme_type = 8 if MRN==x
+replace heme_type = 3 if MRN==x
 
 tab heme_type undetectable, col chi2
 
-replace cancer_type_other =5 if MRN==27991882 
-replace cancer_type_other =5 if MRN==39955318
-replace cancer_type_other =5 if MRN==48665969
-replace cancer_type_other =. if MRN==20011750 
-replace cancer_type_other =. if MRN==20731087
+replace cancer_type_other =5 if MRN==x 
+replace cancer_type_other =5 if MRN==x
+replace cancer_type_other =5 if MRN==x
+replace cancer_type_other =. if MRN==x 
+replace cancer_type_other =. if MRN==x
 baselinetable cancer(value(1)) BMI_category undetectable(value(1)) smoking HIV(value(1)) CVID(value(1)) immunodeficiency(value(1)) ///
 age_category male race xolair(value(1))
 
@@ -1920,17 +1920,17 @@ replace last_contact_date = collectdate if study_time <0 & study_time >= -0.1 /*
 count if study_time < 0 
 list MRN death_date last_contact_date IgE collectdate event_date study_time if study_time < 0 
 
-replace collectdate = td(23oct2019) if MRN==87844501
-replace last_contact_date = td(25jun2020) if MRN==87666800
-replace collectdate = td(08jan2020) if MRN==87522513
-drop if MRN==87522513 /* kid */
-replace last_contact_date = td(11feb2020) if MRN==87457001
-replace collectdate = td(10feb2020) if MRN==87457001
-replace collectdate = td(03jul2019) if MRN==87352407
-drop if MRN==87352407 /* kid */
-drop if MRN==87338329 /* kid */
-drop if MRN==87666800 /* kid */
-replace collectdate = td(03jul2019) if MRN==87352407
+replace collectdate = td(23oct2019) if MRN==x
+replace last_contact_date = td(25jun2020) if MRN==x
+replace collectdate = td(08jan2020) if MRN==x
+drop if MRN==x /* kid */
+replace last_contact_date = td(11feb2020) if MRN==x
+replace collectdate = td(10feb2020) if MRN==x
+replace collectdate = td(03jul2019) if MRN==x
+drop if MRN==x /* kid */
+drop if MRN==x /* kid */
+drop if MRN==x /* kid */
+replace collectdate = td(03jul2019) if MRN==x
 
 count if study_time < 0 & missing(age)
 list MRN death_date last_contact_date IgE collectdate event_date study_time if study_time < 0 & missing(age)
@@ -1938,68 +1938,68 @@ drop if study_time < 0 & missing(age) /* all kids from Florida, shouldn't be in 
 count if study_time < 0
 
 list MRN death_date last_contact_date IgE collectdate event_date study_time if study_time < 0 
-replace collectdate = td(07nov2016) if MRN==87057200
-replace collectdate = td(16dec2016) if MRN==87056448
-replace collectdate = td(18may2016) if MRN==87055130
-replace collectdate = td(08jan2018) if MRN==87047556
-replace collectdate = td(27oct2017) if MRN==87015034
-replace collectdate = td(20oct2016) if MRN==87003353
-replace collectdate = td(02nov2017) if MRN==86990649
-replace collectdate = td(17feb2017) if MRN==86975559
-replace collectdate = td(01apr2016) if MRN==86975307
-replace collectdate = td(01apr2016) if MRN==86968824
-replace collectdate = td(09aug2017) if MRN==86959578
-replace collectdate = td(05dec2016) if MRN==86958820
-replace collectdate = td(03may2016) if MRN==86951087
-replace collectdate = td(12sep2017) if MRN==86943015
-replace collectdate = td(28jan2016) if MRN==86931951
-replace collectdate = td(17aug2016) if MRN==86928861
-replace collectdate = td(14jan2016) if MRN==86915845
-replace collectdate = td(08sep2016) if MRN==86869429
-replace collectdate = td(09jun2016) if MRN==86863377
-replace collectdate = td(10mar2016) if MRN==86858746
-replace collectdate = td(16mar2016) if MRN==86852283
-replace collectdate = td(03aug2016) if MRN==86968824
-replace collectdate = td(04may2016) if MRN==85535500
-replace collectdate = td(18apr2016) if MRN==85515752
-replace collectdate=death_date if MRN==84010964
-replace collectdate = td(30dec2016) if MRN==84001253
-replace collectdate = td(16aug2017) if MRN==83975077
-replace collectdate = td(01mar2017) if MRN==83869167
-replace collectdate=death_date if MRN==84010964
-replace last_contact_date = td(30dec2016) if MRN==84001253
-replace collectdate = td(09aug2016) if MRN==82928766
-replace collectdate = td(03dec2015) if MRN==81858187
-replace collectdate=death_date if MRN==78150998
-replace last_contact_date=death_date if MRN==78150998
-replace last_contact_date=death_date if MRN==77697136
-replace collectdate=death_date if MRN==77697136
-replace collectdate=death_date if MRN==75862547
-replace last_contact_date=death_date if MRN==75862547
-replace collectdate=death_date if MRN==75862547
-replace death_date = . if MRN==72102967 /* incorrect death date */
-replace collectdate = td(29aug2016) if MRN==70687844 
-replace collectdate = td(01dec2017) if MRN==59573713 
-replace death_date = . if MRN==56533044 /* incorrect death date */
-replace last_contact_date=death_date if MRN==49441681
-replace collectdate=death_date if MRN==49441681
-replace death_date = . if MRN==49418221 /* not dead */
-replace collectdate = td(30jan2018) if MRN==46586077 
-replace death_date=td(22jun2006) if MRN==36035170 /* wrong death date */
-replace last_contact_date=death_date if MRN==36035170 
-replace collectdate = td(08dec2017) if MRN==30875974
-replace collectdate = td(06apr2017) if MRN==30485203
-replace last_contact_date=death_date if MRN==29589208
-replace collectdate=death_date if MRN==29589208
-replace collectdate=last_contact_date if MRN==27964648
+replace collectdate = td(07nov2016) if MRN==x
+replace collectdate = td(16dec2016) if MRN==x
+replace collectdate = td(18may2016) if MRN==x
+replace collectdate = td(08jan2018) if MRN==x
+replace collectdate = td(27oct2017) if MRN==x
+replace collectdate = td(20oct2016) if MRN==x
+replace collectdate = td(02nov2017) if MRN==x
+replace collectdate = td(17feb2017) if MRN==x
+replace collectdate = td(01apr2016) if MRN==x
+replace collectdate = td(01apr2016) if MRN==x
+replace collectdate = td(09aug2017) if MRN==x
+replace collectdate = td(05dec2016) if MRN==x
+replace collectdate = td(03may2016) if MRN==x
+replace collectdate = td(12sep2017) if MRN==x
+replace collectdate = td(28jan2016) if MRN==x
+replace collectdate = td(17aug2016) if MRN==x
+replace collectdate = td(14jan2016) if MRN==x
+replace collectdate = td(08sep2016) if MRN==x
+replace collectdate = td(09jun2016) if MRN==x
+replace collectdate = td(10mar2016) if MRN==x
+replace collectdate = td(16mar2016) if MRN==x
+replace collectdate = td(03aug2016) if MRN==x
+replace collectdate = td(04may2016) if MRN==x
+replace collectdate = td(18apr2016) if MRN==x
+replace collectdate=death_date if MRN==x
+replace collectdate = td(30dec2016) if MRN==x
+replace collectdate = td(16aug2017) if MRN==x
+replace collectdate = td(01mar2017) if MRN==x
+replace collectdate=death_date if MRN==x
+replace last_contact_date = td(30dec2016) if MRN==x
+replace collectdate = td(09aug2016) if MRN==x
+replace collectdate = td(03dec2015) if MRN==x
+replace collectdate=death_date if MRN==x
+replace last_contact_date=death_date if MRN==x
+replace last_contact_date=death_date if MRN==x
+replace collectdate=death_date if MRN==x
+replace collectdate=death_date if MRN==x
+replace last_contact_date=death_date if MRN==x
+replace collectdate=death_date if MRN==x
+replace death_date = . if MRN==x /* incorrect death date */
+replace collectdate = td(29aug2016) if MRN==x 
+replace collectdate = td(01dec2017) if MRN==x 
+replace death_date = . if MRN==x /* incorrect death date */
+replace last_contact_date=death_date if MRN==x
+replace collectdate=death_date if MRN==x
+replace death_date = . if MRN==x /* not dead */
+replace collectdate = td(30jan2018) if MRN==x 
+replace death_date=td(22jun2006) if MRN==x /* wrong death date */
+replace last_contact_date=death_date if MRN==x 
+replace collectdate = td(08dec2017) if MRN==x
+replace collectdate = td(06apr2017) if MRN==x
+replace last_contact_date=death_date if MRN==x
+replace collectdate=death_date if MRN==x
+replace collectdate=last_contact_date if MRN==x
 drop if MRN==27791786 /* no information, no IgE */
 drop if MRN==27386962 /* no information, no IgE */
-replace collectdate = td(14nov2014) if MRN==19952142 
-replace death_date = . if MRN==19732096 /* dead at unknown time */
-replace death_date = . if MRN==11398375 /* dead at unknown time */
-replace collectdate = last_contact_date if MRN==36562374 
-replace collectdate = td(25Jul2012) if MRN==17494589
-replace collectdate = td(14Mar2017) if MRN==16010880
+replace collectdate = td(14nov2014) if MRN==x 
+replace death_date = . if MRN==x /* dead at unknown time */
+replace death_date = . if MRN==x /* dead at unknown time */
+replace collectdate = last_contact_date if MRN==x 
+replace collectdate = td(25Jul2012) if MRN==x
+replace collectdate = td(14Mar2017) if MRN==x
 
 * interim code to update list *
 drop study_time event event_date
