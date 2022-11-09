@@ -1,0 +1,2109 @@
+*************************************************************************************************************************************************************
+*exclusions
+
+tab unique_subject /* original number of subject before exclusion criteria performed */
+
+* first get rid of those with excessive IgE measurements
+sort MRN collectdate
+list MRN collectdate in 1/100, sepby(MRN)
+by MRN: gen collect_first = collectdate[1]
+format collect_first %td
+list MRN collectdate collect_first in 1/100, sepby(MRN)
+by MRN: gen delta = collectdate-collect_first
+list MRN collectdate collect_first delta in 1/100, sepby(MRN)
+by MRN: gen collect_index = _n
+list MRN collectdate collect_first delta collect_index in 1/100, sepby(MRN)
+
+list MRN collectdate collect_first delta collect_index if collect_index >=3, sepby(MRN)
+by MRN: gen drop_flag = 1 if collect_index==3 & delta[3] <365
+
+list MRN collectdate collect_first delta collect_index drop_flag if collect_index >=3, sepby(MRN)
+by MRN: replace drop_flag = 1 if drop_flag[3] ==1
+list MRN collectdate collect_first delta collect_index drop_flag if drop_flag==1, sepby(MRN)
+
+count if unique_subject==1 & drop_flag==1 /* 761 unique subjects with excessive measurements */
+
+drop if drop_flag==1
+
+* drop all repeated measurements
+drop if intIndex > 1
+
+* age exclusion
+
+drop if age < 18 /* 9478 */
+
+* prior cancer
+gen cancer_prior = 0
+replace cancer_prior = 1 if cancer_dx_date < collectdate
+
+drop if cancer_prior == 1 /* 4008 */
+
+* fast time to malignancy
+
+gen time_to_cancer = cancer_dx_date-collectdate if cancer==1
+
+count if time_to_cancer <90 /* 414 */
+drop if time_to_cancer <90 
+
+count if !missing(IgE)
+
+
+**************************************************************************************************************************************************************further cleaning/coding of covariates
+
+drop unique_subject /* no longer applies */
+
+list BMI if BMI<10
+replace BMI=. if BMI<10 & !missing(BMI)
+replace BMI=. if BMI >=80 & !missing(BMI)
+
+
+sum BMI, detail
+sum age, detail
+
+egen IgE_category = cut(IgE), at(0,3,10,114,1000, 120000) label
+table IgE_category, contents(min IgE max IgE) 
+tabulate IgE_category, nolabel
+
+egen BMI_category = cut(BMI), at(0,25,30,35,40, 80)
+table BMI_category, contents(min BMI max BMI)
+
+replace cancer = 0 if cancer != 1
+tabulate cancer
+
+recode cancer_type (3=1) /* Skin */ (2=2) /* hematologic*/ (5=3) /* breast */ (4=5) /* GI to other */ (8=4) /* urological */ (1=5) /* Other */ ///
+(6=5) (7=5) (9=5) (10=5) (11=5) (12=5) (13=5), gen(cancer_type_other) 
+
+label define cancer_type_other_l 1 "skin" 2 "hematologic" 3 "breast" 4 "urological" 5 "other", replace
+label values cancer_type_other cancer_type_other_l
+label variable cancer_type_other "consolidated cancer type"
+
+tab cancer_type cancer_type_other, missing
+tabulate cancer_type_other
+tab IgE_category
+tab BMI_category
+tab smoking
+
+replace HIV = 0 if HIV != 1
+tab HIV
+
+replace CVID = 0 if CVID != 1
+tab CVID 
+
+replace immunodeficiency = 0 if immunodeficiency != 1
+tab immunodeficiency
+
+egen age_category = cut(age), at(0,35,45,55,65,75,85,101)
+table age_category, contents(min age max age)
+
+tab male
+tab race
+
+replace xolair = 0 if xolair != 1
+tab xolair
+
+drop undetectable /* dropping now because it was based on the < designation, not less than 3 */
+gen undetectable = 1 if IgE_category == 0
+replace undetectable = 0 if IgE_category != 0
+
+histogram IgE if IgE <1000, percent title(Histogram of IgE Levels) subtitle(IgE <= 1000 IU/mL) caption(distribution of IgE levels ///
+demonstrated significant right skewing)
+
+label define IgE_category_l 0 "undetectable (<3)" 1 "low (>=3 & <10)" 2 "medium (>=10 & <114)" 3 "high (>=114 & <1000)" ///
+4 "extremely elevated (>=1000)", replace
+
+label values IgE_category IgE_category_l
+graph hbar, over(IgE_category) title(Categorical Distribution of IgE Levels) subtitle(in IU/mL)
+
+tab IgE_category undetectable
+
+label define cancer_l 1 "during total study period", replace
+label values cancer cancer_l
+
+label variable BMI_category "BMI (kg/m^2)"
+label define BMI_l 0 "<25" 25 "25-29" 30 "30-34" 35 "35-39" 40 ">= 40", replace
+label values BMI_category BMI_l
+
+label variable smoking "smoking history"
+
+label variable HIV "subject diagnosed"
+label define HIV_l 1 "with HIV", replace
+label values HIV HIV_l
+
+label variable CVID "subject"
+label define CVID_l 1 "with common variable immunodeficiency (CVID)", replace
+label values CVID CVID_l
+
+label variable immunodeficiency "subject"
+label define immunodeficiency_l 1 "with non-CVID immunodeficiency", replace
+label values immunodeficiency immunodeficiency_l
+
+label variable age_category "age (years)"
+label define age_category_l 0 "18-34" 35 "35-44" 45 "45-54" 55 "55-64" 65 "65-74" 75 "75-84" 85 ">= 85", replace
+label values age_category age_category_l
+
+label variable male "subject"
+label define male_l 1 "male", replace
+label values male male_l
+
+label variable race "subject race"
+label define race_l 1 "Asian" 2 "African American" 3 "Other" 4 "Caucasian", replace
+label values male male_l
+
+label variable xolair "subject"
+label define xolair_l 1 "ever received Omalizumab (anti-IgE mAB)", replace
+label values xolair xolair_l
+
+label variable IgE_category "IgE (IU/mL)"
+label define IgE_category_l 0 "undetectable (<3)" 1 "low (>=3 & <10)" 2 "medium (>=10 & <114)" 3 "high (>=114 & <1000)" ///
+4 "extremely elevated (>=1000)", replace
+label values IgE_category IgE_category_l
+
+label variable undetectable "IgE (IU/mL)"
+label define undetectable_l 0 "detectable (>= 3)" 1 "undetectable (<3)", replace
+label values undetectable undetectable_l
+
+save demographics_table_file, replace
+use demographics_table_file, clear
+* cancer periods for binary analysis
+
+gen cancer_year = 0 
+replace cancer_year = 1 if cancer_dx_date-collectdate <= 365
+
+gen cancer_3_year = 0 
+replace cancer_3_year = 1 if cancer_dx_date-collectdate <= (3*365)
+
+gen cancer_5_year = 0
+replace cancer_5_year = 1 if cancer_dx_date-collectdate <= (5*365)
+
+gen cancer_10_year = 0 
+replace cancer_10_year = 1 if cancer_dx_date-collectdate <= (10*365)
+
+* study time for survival analysis
+
+*DEATH_DATE
+format DEATH_DATE %td
+rename DEATH_DATE death_date
+
+*LAST_CONTACT_DATE
+format LAST_CONTACT_DATE %td
+rename LAST_CONTACT_DATE last_contact_date
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= last_contact_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= last_contact_date /* outcome - cancer */
+
+
+gen event_date = last_contact_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+
+gen study_time = (event_date - collectdate)/365.25
+sum study_time, detail
+
+replace last_contact_date = collectdate if study_time <0 & study_time >= -0.1 /* this fixes folks where the last contact date and IgE date were within days of each other */
+
+count if study_time < 0 
+list MRN death_date last_contact_date IgE collectdate event_date study_time if study_time < 0 
+
+replace collectdate = td(23oct2019) if MRN==87844501
+replace last_contact_date = td(25jun2020) if MRN==87666800
+replace collectdate = td(08jan2020) if MRN==87522513
+drop if MRN==87522513 /* kid */
+replace last_contact_date = td(11feb2020) if MRN==87457001
+replace collectdate = td(10feb2020) if MRN==87457001
+replace collectdate = td(03jul2019) if MRN==87352407
+drop if MRN==87352407 /* kid */
+drop if MRN==87338329 /* kid */
+drop if MRN==87666800 /* kid */
+replace collectdate = td(03jul2019) if MRN==87352407
+
+count if study_time < 0 & missing(age)
+list MRN death_date last_contact_date IgE collectdate event_date study_time if study_time < 0 & missing(age)
+drop if study_time < 0 & missing(age) /* all kids from Florida, shouldn't be in here anyways */
+count if study_time < 0
+
+list MRN death_date last_contact_date IgE collectdate event_date study_time if study_time < 0 
+replace collectdate = td(07nov2016) if MRN==87057200
+replace collectdate = td(16dec2016) if MRN==87056448
+replace collectdate = td(18may2016) if MRN==87055130
+replace collectdate = td(08jan2018) if MRN==87047556
+replace collectdate = td(27oct2017) if MRN==87015034
+replace collectdate = td(20oct2016) if MRN==87003353
+replace collectdate = td(02nov2017) if MRN==86990649
+replace collectdate = td(17feb2017) if MRN==86975559
+replace collectdate = td(01apr2016) if MRN==86975307
+replace collectdate = td(01apr2016) if MRN==86968824
+replace collectdate = td(09aug2017) if MRN==86959578
+replace collectdate = td(05dec2016) if MRN==86958820
+replace collectdate = td(03may2016) if MRN==86951087
+replace collectdate = td(12sep2017) if MRN==86943015
+replace collectdate = td(28jan2016) if MRN==86931951
+replace collectdate = td(17aug2016) if MRN==86928861
+replace collectdate = td(14jan2016) if MRN==86915845
+replace collectdate = td(08sep2016) if MRN==86869429
+replace collectdate = td(09jun2016) if MRN==86863377
+replace collectdate = td(10mar2016) if MRN==86858746
+replace collectdate = td(16mar2016) if MRN==86852283
+replace collectdate = td(03aug2016) if MRN==86968824
+replace collectdate = td(04may2016) if MRN==85535500
+replace collectdate = td(18apr2016) if MRN==85515752
+replace collectdate=death_date if MRN==84010964
+replace collectdate = td(30dec2016) if MRN==84001253
+replace collectdate = td(16aug2017) if MRN==83975077
+replace collectdate = td(01mar2017) if MRN==83869167
+replace collectdate=death_date if MRN==84010964
+replace last_contact_date = td(30dec2016) if MRN==84001253
+replace collectdate = td(09aug2016) if MRN==82928766
+replace collectdate = td(03dec2015) if MRN==81858187
+replace collectdate=death_date if MRN==78150998
+replace last_contact_date=death_date if MRN==78150998
+replace last_contact_date=death_date if MRN==77697136
+replace collectdate=death_date if MRN==77697136
+replace collectdate=death_date if MRN==75862547
+replace last_contact_date=death_date if MRN==75862547
+replace collectdate=death_date if MRN==75862547
+replace death_date = . if MRN==72102967 /* incorrect death date */
+replace collectdate = td(29aug2016) if MRN==70687844 
+replace collectdate = td(01dec2017) if MRN==59573713 
+replace death_date = . if MRN==56533044 /* incorrect death date */
+replace last_contact_date=death_date if MRN==49441681
+replace collectdate=death_date if MRN==49441681
+replace death_date = . if MRN==49418221 /* not dead */
+replace collectdate = td(30jan2018) if MRN==46586077 
+replace death_date=td(22jun2006) if MRN==36035170 /* wrong death date */
+replace last_contact_date=death_date if MRN==36035170 
+replace collectdate = td(08dec2017) if MRN==30875974
+replace collectdate = td(06apr2017) if MRN==30485203
+replace last_contact_date=death_date if MRN==29589208
+replace collectdate=death_date if MRN==29589208
+replace collectdate=last_contact_date if MRN==27964648
+drop if MRN==27791786 /* no information, no IgE */
+drop if MRN==27386962 /* no information, no IgE */
+replace collectdate = td(14nov2014) if MRN==19952142 
+replace death_date = . if MRN==19732096 /* dead at unknown time */
+replace death_date = . if MRN==11398375 /* dead at unknown time */
+replace collectdate = last_contact_date if MRN==36562374 
+replace collectdate = td(25Jul2012) if MRN==17494589
+replace collectdate = td(14Mar2017) if MRN==16010880
+
+* interim code to update list *
+drop study_time event event_date
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= last_contact_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= last_contact_date /* outcome - cancer */
+
+
+gen event_date = last_contact_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+
+
+format event_date %td
+
+gen study_time = (event_date - collectdate)/365.25
+sum study_time, detail
+
+count if study_time < 0 
+list MRN death_date last_contact_date IgE collectdate event_date study_time if study_time < 0 
+
+drop event event_date
+
+* some demographics
+
+baselinetable cancer(value(1)) BMI_category undetectable(value(1)) smoking HIV(value(1)) CVID(value(1)) immunodeficiency(value(1)) ///
+age_category male(value(1)) race xolair(value(1)), missing
+
+baselinetable cancer(value(1)) BMI_category smoking HIV(value(1)) CVID(value(1)) immunodeficiency(value(1)) ///
+age_category male(value(1)) race xolair(value(1)), by(undetectable) missing
+
+tab cancer undetectable, nolabel col
+
+tab cancer_type_other undetectable, col
+
+graph hbar, over(cancer_type_other) blabel(bar, format(%5.0g)) by(, title(First Malignancies) subtitle(grouped by IgE status (undetectable or detectable)) caption(percentage of hematologic malignancy almost doubled in the undetectable IgE group)) by(undetectable)
+
+save models, replace
+use models, clear
+* binary models
+
+glm cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /* ever */
+
+glm cancer_year undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /* 1 year */
+
+glm cancer_3_year undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /* 3 year */
+
+glm cancer_5_year undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /* 5 year */
+
+glm cancer_10_year undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /* 10 year */
+
+* survival models
+
+* survival ever
+
+gen censor_date = collectdate + 365*100
+format censor_date %td
+list collectdate censor_date in 1/10
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= censor_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= censor_date /* outcome - cancer */
+replace event = 3 if last_contact_date <= censor_date & event ==0 /* left CCF */
+
+gen event_date = censor_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+replace event_date = last_contact_date if event ==3
+
+format event_date %td
+
+list MRN collectdate death_date cancer_dx_date censor_date event event_date in 1/100
+// list MRN collectdate death_date cancer_dx_date censor_date event event_date in 200/1000
+
+stset event_date, origin(time collectdate) fail(event==2) id(MRN) 
+count if missing(collectdate)
+list MRN collectdate death_date cancer_dx_date censor_date event event_date _st-_t0 in 1/100
+
+stdescribe
+// stcox ib2.IgE_category i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair
+stcox undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair /* EVER */
+
+linktest /* significant h, insignificant h squared, what we want to see */
+sts graph, by(undetectable) ylabel(minmax)
+estat phtest
+
+stcox undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.male i.race i.xolair, strata(age_category) /* with stratification */
+estat phtest
+
+use models, clear
+* one year 
+
+gen censor_date = collectdate + 365*1
+format censor_date %td
+list collectdate censor_date in 1/10
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= censor_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= censor_date /* outcome - cancer */
+replace event = 3 if last_contact_date <= censor_date & event ==0 /* left CCF */
+
+gen event_date = censor_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+replace event_date = last_contact_date if event ==3
+
+format event_date %td
+
+list MRN collectdate death_date cancer_dx_date censor_date event event_date in 1/100
+// list MRN collectdate death_date cancer_dx_date censor_date event event_date in 200/1000
+
+stset event_date, origin(time collectdate) fail(event==2) id(MRN) 
+count if missing(collectdate)
+list MRN collectdate death_date cancer_dx_date censor_date event event_date _st-_t0 in 1/100
+
+stdescribe
+// stcox ib2.IgE_category i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair
+stcox undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair /* one year */
+
+// sts graph, by(undetectable) ylabel(minmax)
+
+use models, clear
+
+* three year
+
+gen censor_date = collectdate + 365*3
+format censor_date %td
+list collectdate censor_date in 1/10
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= censor_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= censor_date /* outcome - cancer */
+replace event = 3 if last_contact_date <= censor_date & event ==0 /* left CCF */
+
+gen event_date = censor_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+replace event_date = last_contact_date if event ==3
+
+format event_date %td
+
+list MRN collectdate death_date cancer_dx_date censor_date event event_date in 1/100
+// list MRN collectdate death_date cancer_dx_date censor_date event event_date in 200/1000
+
+stset event_date, origin(time collectdate) fail(event==2) id(MRN) /* note: probable error is because 6,000 subjects missing collectdate */
+list MRN collectdate death_date cancer_dx_date censor_date event event_date _st-_t0 in 1/100
+
+stdescribe
+// stcox ib2.IgE_category i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair
+stcox undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair /* three year */
+
+// sts graph, by(undetectable) ylabel(minmax)
+
+use models, clear
+
+* five year
+
+gen censor_date = collectdate + 365*5
+format censor_date %td
+list collectdate censor_date in 1/10
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= censor_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= censor_date /* outcome - cancer */
+replace event = 3 if last_contact_date <= censor_date & event ==0 /* left CCF */
+
+gen event_date = censor_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+replace event_date = last_contact_date if event ==3
+
+format event_date %td
+
+list MRN collectdate death_date cancer_dx_date censor_date event event_date in 1/100
+// list MRN collectdate death_date cancer_dx_date censor_date event event_date in 200/1000
+
+stset event_date, origin(time collectdate) fail(event==2) id(MRN) /* note: probable error is because 6,000 subjects missing collectdate */
+list MRN collectdate death_date cancer_dx_date censor_date event event_date _st-_t0 in 1/100
+
+stdescribe
+// stcox ib2.IgE_category i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair
+stcox undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair
+
+// sts graph, by(undetectable) ylabel(minmax)
+use models, clear
+
+* ten years
+
+gen censor_date = collectdate + 365*10
+format censor_date %td
+list collectdate censor_date in 1/10
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= censor_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= censor_date /* outcome - cancer */
+replace event = 3 if last_contact_date <= censor_date & event ==0 /* left CCF */
+
+gen event_date = censor_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+replace event_date = last_contact_date if event ==3
+
+format event_date %td
+
+list MRN collectdate death_date cancer_dx_date censor_date event event_date in 1/100
+// list MRN collectdate death_date cancer_dx_date censor_date event event_date in 200/1000
+
+stset event_date, origin(time collectdate) fail(event==2) id(MRN) /* note: probable error is because 6,000 subjects missing collectdate */
+list MRN collectdate death_date cancer_dx_date censor_date event event_date _st-_t0 in 1/100
+
+stdescribe
+// stcox ib2.IgE_category i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair
+stcox undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair
+
+use models, clear
+
+tab cancer_type_other
+
+* blood cancer
+gen blood_cancer = 0 
+replace blood_cancer = 1 if cancer_type_other ==2
+
+* skin cancer
+gen skin_cancer = 0 
+replace skin_cancer = 1 if cancer_type_other ==1
+
+* breast cancer
+gen breast_cancer = 0 
+replace breast_cancer = 1 if cancer_type_other ==3
+
+* urological cancer
+gen uro_cancer = 0 
+replace uro_cancer = 1 if cancer_type_other ==4
+
+* cancer other 
+gen other_cancer = 0 
+replace other_cancer = 1 if cancer_type_other ==5
+
+glm blood_cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /*blood cancer*/ 
+
+*how about skin cancer
+
+glm skin_cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /*skin cancer */
+
+*how about breast cancer
+
+glm breast_cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /*breast_cancer - not significant  */
+
+*how about uro cancer - won't converge
+
+// glm uro_cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+// vce(robust) eform /*urological cancer */
+
+*how about other cancer
+
+glm other_cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /*other_cancer - not significant */
+
+* exploratory data analysis for write up
+
+use models, clear
+
+label define cancer_l 1 "during total study period", replace
+label values cancer cancer_l
+
+label variable BMI_category "BMI (kg/m^2)"
+label define BMI_l 0 "<25" 25 "25-29" 30 "30-34" 35 "35-39" 40 ">= 40", replace
+label values BMI_category BMI_l
+
+label variable smoking "smoking history"
+
+label variable HIV "subject diagnosed"
+label define HIV_l 1 "with HIV", replace
+label values HIV HIV_l
+
+label variable CVID "subject"
+label define CVID_l 1 "with common variable immunodeficiency (CVID)", replace
+label values CVID CVID_l
+
+label variable immunodeficiency "subject"
+label define immunodeficiency_l 1 "with non-CVID immunodeficiency", replace
+label values immunodeficiency immunodeficiency_l
+
+label variable age_category "age (years)"
+label define age_category_l 0 "18-34" 35 "35-44" 45 "45-54" 55 "55-64" 65 "65-74" 75 "75-84" 85 ">= 85", replace
+label values age_category age_category_l
+
+label variable male "subject"
+label define male_l 1 "male", replace
+label values male male_l
+
+label variable race "subject race"
+label define race_l 1 "Asian" 2 "African American" 3 "Other" 4 "Caucasian", replace
+label values male male_l
+
+label variable xolair "subject"
+label define xolair_l 1 "ever received Omalizumab (anti-IgE mAB)", replace
+label values xolair xolair_l
+
+label variable IgE_category "IgE (IU/mL)"
+label define IgE_category_l 0 "undetectable (<3)" 1 "low (>=3 & <10)" 2 "medium (>=10 & <114)" 3 "high (>=114 & <1000)" ///
+4 "extremely elevated (>=1000)", replace
+label values IgE_category IgE_category_l
+
+// baselinetable cancer(value(1)) BMI_category smoking HIV(value(1)) CVID(value(1)) immunodeficiency(value(1)) ///
+// age_category male(value(1)) race xolair(value(1)) IgE_category if !missing(IgE), missing
+
+label variable undetectable "IgE (IU/mL)"
+label define undetectable_l 0 "detectable (>= 3)" 1 "undetectable (<3)", replace
+label values undetectable undetectable_l
+
+// baselinetable cancer(value(1)) BMI_category smoking HIV(value(1)) CVID(value(1)) immunodeficiency(value(1)) ///
+// age_category male(value(1)) race xolair(value(1)) if !missing(IgE), by(undetectable) missing
+
+* building a better accounting of skin cancer
+
+tab icd9desc if cancer_type==3, sort
+
+gen melanoma = 0 if cancer_type==3
+replace melanoma = 1 if cancer_type==3 & strpos(icd9desc, "mal melanom") 
+tab icd9desc if melanoma==0, sort 
+
+tab melanoma
+
+tab undetectable melanoma, row
+
+* building an attractive heme cancer picture
+
+tab icd9desc if cancer_type == 2, sort 
+
+* this is - unattractive
+
+gen heme_type = 0 if cancer_type==2 
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "multiple myeloma") /* multiple myeloma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "mult mye") /* multiple myeloma */
+tab icd9desc if heme_type==0, sort 
+
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "lymphoma") /* lymphoma */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "oth lymp") /* lymphoma */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "mal neo lymph node") /* lymphoma */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "ndlr lym") /* lymphoma */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "burkitt") /* lymphoma */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "mal neo lymph-axilla/arm") /* lymphoma */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "mal neo lymph-intrathor ") /* lymphoma */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "malig neo lymph nodes") /* lymphoma */
+
+
+replace heme_type = 3 if cancer_type==2 & strpos(icd9desc, "chr lymphoid") /* CLL */
+replace heme_type = 3 if cancer_type==2 & strpos(icd9desc, "ch lym leuk") /* CLL */
+replace heme_type = 3 if cancer_type==2 & strpos(icd9desc, "chr lym") /* CLL */
+
+replace heme_type = 4 if cancer_type==2 & strpos(icd9desc, "chronic myeloid") /* CML */
+replace heme_type = 4 if cancer_type==2 & strpos(icd9desc, "ch myl") /* CML */
+
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "lymphoid leukemia nec") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "myeloid leukemia*") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "leuk nos") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "leukemia-unspec cell") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "uns my leu wo ach") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "ac leu un cl wo") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "ac mono leu wo achv rmsn") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "ac lym leuk wo achv rmsn") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "ac myl leuk wo achv rmsn") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "act lym leuk w rmsion") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "act mono leuk w rmsion") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "act myl leuk w rmsion") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "hx of leukemia nos") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "hx of myeloid leukemia") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "leukemia-unspecif") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "lymphoid leukemia") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "monocytic leukemia") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "myeloid leukemia n") /* other leukemia */
+
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "macroglob") /* macroglobulinemia */
+
+replace heme_type = 7 if cancer_type==2 & strpos(icd9desc, "hdgk") /* hodgkin */
+replace heme_type = 7 if cancer_type==2 & strpos(icd9desc, "hodgkin") /* hodgkin */
+replace heme_type = 7 if cancer_type==2 & strpos(icd9desc, "hodg") /* hodgkin */
+
+replace heme_type = 8 if cancer_type==2 & strpos(icd9desc, "szry") /* Sezary CTCL*/
+replace heme_type = 8 if cancer_type==2 & strpos(icd9desc, "mycosis") /* Sezary CTCL*/
+replace heme_type = 8 if cancer_type==2 & strpos(icd9desc, "sezary") /* Sezary CTCL*/
+
+replace heme_type = 9 if cancer_type==2 & strpos(icd9desc, "mast") /* mast cell*/
+
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "metabolism") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "200.3") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "200.4") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "200.5") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "202.7") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "lymphosarc") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "lymphsrc") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "plasmacytom") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "hx-lymphatic malign nec") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "kaposi's sarcoma nos") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "letterer-siwe") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "lymph/hematpoitc tis nec") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "malig neopl pleura nec") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "oth imno npl wo ach rms") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "oth lym leu wo achv rmsn") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "oth varn unsp xtrndl org") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "paraproteinemia nec") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "second malig neo pleura") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "ndr sclr unsp xtrndl org") /* other */
+
+tab icd9desc if heme_type==0
+
+label define heme_type_l 1 "multiple myeloma" 2 "non-Hodgkin lymphoma" 3 "CLL" 4 "CML" 5 "other leukemia" 6 "macroglobulinemia" ///
+7 "Hodgkin lymphoma" 8 "Sezary CTCL" 9 "mast cell" 10 "other", replace
+
+label values heme_type heme_type_l
+
+rename heme_type heme_type_original
+
+* new framework - from Dr. Hsieh
+gen heme_type = 0 if cancer_type==2
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "lymphoma") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "oth lymp") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "mal neo lymph node") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "ndlr lym") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "burkitt") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "mal neo lymph-axilla/arm") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "mal neo lymph-intrathor ") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "malig neo lymph nodes") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "szry") /* lymphoma*/
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "mycosis") /* lymphoma*/
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "periph t cell lym ingui") /* lymphoma*/
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "margin zone lymph") /* lymphoma*/
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "margnl zone") /* lymphoma*/
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "periph t cell lym") /* lymphoma*/
+replace heme_type = 1 if cancer_type==2 & strpos(icd10desc, "lymphoma") /* lymphoma*/
+replace heme_type = 1 if cancer_type==2 & strpos(icd10desc, "Oth types of non-hodg lymph") /* lymphoma*/
+ 
+
+
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "hdgk") /* hodgkin */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "hodgkin") /* hodgkin */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "hodg") /* hodgkin */
+
+replace heme_type = 3 if cancer_type==2 & strpos(icd9desc, "chr lymphoid") /* CLL */
+replace heme_type = 3 if cancer_type==2 & strpos(icd9desc, "ch lym leuk") /* CLL */
+replace heme_type = 3 if cancer_type==2 & strpos(icd9desc, "chr lym") /* CLL */
+replace heme_type = 3 if cancer_type==2 & strpos(icd9desc, "chr lymphoid leukemia") /* CLL */
+
+
+replace heme_type = 4 if cancer_type==2 & strpos(icd9desc, "chronic myeloid") /* CML */
+replace heme_type = 4 if cancer_type==2 & strpos(icd9desc, "ch myl") /* CML */
+replace heme_type = 4 if cancer_type==2 & strpos(icd9desc, "chronic myeloid leukemia") /* CML */
+
+
+
+
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "multiple myeloma") /* plasma cell dyscrasia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "mult mye") /* plasma cell dyscrasia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "macroglob") /* plasma cell dyscrasia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "paraproteinemia nec") /* plasma cell dyscrasia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "plasmacytom") /* plasma cell dyscrasia */
+
+
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "ac leu un cl wo") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "ac mono leu wo achv rmsn") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "ac lym leuk wo achv rmsn") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "ac myl leuk wo achv rmsn") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "act lym leuk w rmsion") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "act mono leuk w rmsion") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "act myl leuk w rmsion") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd10desc, "Acute myeloblastic leukemia") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd10desc, "Acute lymphoblastic leukemia") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd10desc, "Acute monoblastic/monocytic leukemia") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd10desc, "Acute leukemia") /* acute leukemia */
+
+
+
+
+
+replace heme_type = 0 if cancer_type==2 & missing(heme_type)
+tab icd9desc if heme_type==0
+
+label define heme_type_hsieh_l 1 "non-Hodgkin lymphoma" 2 "Hodgkin lymphoma" 3 "CLL" 4 "CML" 5 "plasma cell dyscrasia" ///
+6 "acute leukemia" 7 "mast cell" 8 "LCH" 0 "myelodysplastic syndrome", replace
+
+label values heme_type heme_type_hsieh_l
+
+tab heme_type_original /* original/Jack formulation */
+tab heme_type /* Dr. Hsieh formulation */
+
+count if heme_type==0
+
+* per Hsieh recommendations in email from 5/12
+list MRN icd9desc icd10desc if heme_type==0
+
+replace heme_type = 6 if MRN==5527643
+replace heme_type = 2 if MRN==11911536
+replace heme_type = 2 if MRN==16211109
+replace heme_type =. if MRN==20011750 /* history of cancer, should be excluded */
+replace heme_type =7 if MRN==18906112 /* mast cell */
+replace heme_type = 1 if MRN==20669306 
+replace heme_type =. if MRN==20731087 /* history of cancer, should be excluded */
+replace heme_type = 6 if MRN==21726036 
+replace heme_type = 3 if MRN==22212397
+replace heme_type = 6 if MRN==23900114
+replace heme_type = 8 if MRN==25039700
+replace heme_type = 3 if MRN==27597939
+replace heme_type = 3 if MRN==27743714
+replace heme_type =. if MRN==27991882 /* pleural, not heme, malignancy */
+replace heme_type = 6 if MRN==28141246
+replace heme_type = 3 if MRN==30110170
+replace heme_type = 8 if MRN==30667336
+replace heme_type =7 if MRN==32031943 /* mast cell */
+replace heme_type = 6 if MRN==38880527
+replace heme_type =. if MRN==39955318 /* pleural, not heme, malignancy */
+replace heme_type = 1 if MRN==40846158 
+replace heme_type = 6 if MRN==42951978
+replace heme_type = 8 if MRN==43499270
+replace heme_type = 5 if MRN==47436192
+replace heme_type = 3 if MRN==48593410
+replace heme_type =. if MRN==48665969 /* vascular, not heme, malignancy */
+replace heme_type = 8 if MRN==50683460
+replace heme_type = 3 if MRN==50908984
+replace heme_type = 1 if MRN==53118151 
+replace heme_type = 1 if MRN==53155154 
+replace heme_type =7 if MRN==56555293 /* mast cell */
+replace heme_type = 3 if MRN==60275912
+replace heme_type = 6 if MRN==73758513
+replace heme_type = 8 if MRN==76649073
+replace heme_type = 3 if MRN==80064888
+
+save hematologic, replace
+
+tab heme_type /* Dr. Hsieh formulation */
+
+use hematologic, clear
+tab heme_type, sort
+
+graph hbar, over(heme_type) title(Categories of Hematologic Malignancy) subtitle(in the CCF IgE Cohort)
+
+*************************************************************************************************************************************************************
+
+* section with specific code for the manuscript
+
+log using "C:\Users\mcdonnj\Desktop\IgE Project\logs\manuscript\abstractAPR2021.log", replace
+
+* ABSTRACT FOR MANUSCRIPT
+
+* how many original subjects?
+
+use IgE_data_whole, clear
+
+*************************************************************************************************************************************************************
+*exclusions
+
+tab unique_subject /* original number of subject before exclusion criteria performed */
+
+* first get rid of those with excessive IgE measurements
+sort MRN collectdate
+list MRN collectdate in 1/100, sepby(MRN)
+by MRN: gen collect_first = collectdate[1]
+format collect_first %td
+list MRN collectdate collect_first in 1/100, sepby(MRN)
+by MRN: gen delta = collectdate-collect_first
+list MRN collectdate collect_first delta in 1/100, sepby(MRN)
+by MRN: gen collect_index = _n
+list MRN collectdate collect_first delta collect_index in 1/100, sepby(MRN)
+
+list MRN collectdate collect_first delta collect_index if collect_index >=3, sepby(MRN)
+by MRN: gen drop_flag = 1 if collect_index==3 & delta[3] <365
+
+list MRN collectdate collect_first delta collect_index drop_flag if collect_index >=3, sepby(MRN)
+by MRN: replace drop_flag = 1 if drop_flag[3] ==1
+list MRN collectdate collect_first delta collect_index drop_flag if drop_flag==1, sepby(MRN)
+
+count if unique_subject==1 & drop_flag==1 /* 761 unique subjects with excessive measurements */
+
+drop if drop_flag==1
+
+* drop all repeated measurements
+drop if intIndex > 1
+
+* age exclusion
+
+drop if age < 18 /* 9478 */
+
+* prior cancer
+gen cancer_prior = 0
+replace cancer_prior = 1 if cancer_dx_date < collectdate
+
+drop if cancer_prior == 1 /* 4008 */
+
+* fast time to malignancy
+
+gen time_to_cancer = cancer_dx_date-collectdate if cancer==1
+
+count if time_to_cancer <90 /* 414 */
+drop if time_to_cancer <90 
+
+count if !missing(IgE) /*39965 */
+drop if missing(IgE)
+
+* median period of observation
+
+use models, clear
+
+* plug in code to get rid of inappropriate heme cancers
+
+replace cancer =0 if MRN==20011750 /* history of cancer, should be excluded */
+replace cancer =0 if MRN==20731087 /* history of cancer, should be excluded */
+
+save models, replace /* key CODE */
+
+sum study_time, detail
+
+*how many got cancer/were undetectable
+
+tab cancer undetectable, nolabel col 
+
+tab cancer undetectable, nolabel row
+
+bysort undetectable: tab cancer_type_other 
+
+tab undetectable
+* overall poisson
+use models, clear
+
+glm cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /* ever */
+
+* overall survival
+gen censor_date = collectdate + 365*100
+format censor_date %td
+list collectdate censor_date in 1/10
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= censor_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= censor_date /* outcome - cancer */
+replace event = 3 if last_contact_date <= censor_date & event ==0 /* left CCF */
+
+gen event_date = censor_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+replace event_date = last_contact_date if event ==3
+
+format event_date %td
+
+stset event_date, origin(time collectdate) fail(event==2) id(MRN) 
+count if missing(collectdate)
+
+stcox undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair /* EVER */
+
+* specific malignancy risks
+
+tab cancer_type_other
+
+* blood cancer
+gen blood_cancer = 0 
+replace blood_cancer = 1 if cancer_type_other ==2
+
+* skin cancer
+gen skin_cancer = 0 
+replace skin_cancer = 1 if cancer_type_other ==1
+
+glm blood_cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /*blood cancer*/ 
+
+glm skin_cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /*skin cancer */
+
+capture log close
+
+log using "C:\Users\mcdonnj\Desktop\IgE Project\logs\manuscript\methodsAPR2021.log", replace
+
+* METHODS SECTION
+
+*range of dates
+
+sort collectdate
+format collectdate %td
+
+* first
+list collectdate in 1
+
+* last
+drop if missing(collectdate)
+list collectdate in l 
+
+* age groupings
+tab age_category
+
+* race/ethnicity
+tab race
+
+* BMI
+
+tab BMI_category
+
+* smoking
+
+tab smoking
+
+* IgE levels
+
+tab IgE_category
+
+* malignancy 
+
+tab cancer_type_other
+
+capture log close
+
+// log using "C:\Users\mcdonnj\Desktop\IgE Project\logs\manuscript\demographicsAPR2021.log", replace
+
+* DEMOGRAPHICS TABLE
+
+use demographics_table_file, clear
+
+replace cancer =0 if MRN==20011750 /* history of cancer, should be excluded */
+replace cancer =0 if MRN==20731087 /* history of cancer, should be excluded */
+
+
+// baselinetable cancer(value(1)) BMI_category undetectable(value(1)) smoking HIV(value(1)) CVID(value(1)) immunodeficiency(value(1)) ///
+// age_category male(value(1)) race xolair(value(1)), missing
+//
+// baselinetable cancer(value(1)) BMI_category smoking HIV(value(1)) CVID(value(1)) immunodeficiency(value(1)) ///
+// age_category male(value(1)) race xolair(value(1)), by(undetectable) missing
+
+
+
+*note: goal of below is to add cancer subtypes to the table 1
+
+capture gen melanoma = 0 if cancer_type==3
+replace melanoma = 1 if cancer_type==3 & strpos(icd9desc, "mal melanom") 
+tab icd9desc if melanoma==0, sort 
+
+tab melanoma
+
+tab undetectable melanoma, row
+
+* building an attractive heme cancer picture
+
+tab icd9desc if cancer_type == 2, sort 
+
+* this is - unattractive
+
+gen heme_type = 0 if cancer_type==2 
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "multiple myeloma") /* multiple myeloma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "mult mye") /* multiple myeloma */
+tab icd9desc if heme_type==0, sort 
+
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "lymphoma") /* lymphoma */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "oth lymp") /* lymphoma */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "mal neo lymph node") /* lymphoma */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "ndlr lym") /* lymphoma */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "burkitt") /* lymphoma */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "mal neo lymph-axilla/arm") /* lymphoma */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "mal neo lymph-intrathor ") /* lymphoma */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "malig neo lymph nodes") /* lymphoma */
+
+
+replace heme_type = 3 if cancer_type==2 & strpos(icd9desc, "chr lymphoid") /* CLL */
+replace heme_type = 3 if cancer_type==2 & strpos(icd9desc, "ch lym leuk") /* CLL */
+replace heme_type = 3 if cancer_type==2 & strpos(icd9desc, "chr lym") /* CLL */
+
+replace heme_type = 4 if cancer_type==2 & strpos(icd9desc, "chronic myeloid") /* CML */
+replace heme_type = 4 if cancer_type==2 & strpos(icd9desc, "ch myl") /* CML */
+
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "lymphoid leukemia nec") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "myeloid leukemia*") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "leuk nos") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "leukemia-unspec cell") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "uns my leu wo ach") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "ac leu un cl wo") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "ac mono leu wo achv rmsn") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "ac lym leuk wo achv rmsn") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "ac myl leuk wo achv rmsn") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "act lym leuk w rmsion") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "act mono leuk w rmsion") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "act myl leuk w rmsion") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "hx of leukemia nos") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "hx of myeloid leukemia") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "leukemia-unspecif") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "lymphoid leukemia") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "monocytic leukemia") /* other leukemia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "myeloid leukemia n") /* other leukemia */
+
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "macroglob") /* macroglobulinemia */
+
+replace heme_type = 7 if cancer_type==2 & strpos(icd9desc, "hdgk") /* hodgkin */
+replace heme_type = 7 if cancer_type==2 & strpos(icd9desc, "hodgkin") /* hodgkin */
+replace heme_type = 7 if cancer_type==2 & strpos(icd9desc, "hodg") /* hodgkin */
+
+replace heme_type = 8 if cancer_type==2 & strpos(icd9desc, "szry") /* Sezary CTCL*/
+replace heme_type = 8 if cancer_type==2 & strpos(icd9desc, "mycosis") /* Sezary CTCL*/
+replace heme_type = 8 if cancer_type==2 & strpos(icd9desc, "sezary") /* Sezary CTCL*/
+
+replace heme_type = 9 if cancer_type==2 & strpos(icd9desc, "mast") /* mast cell*/
+
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "metabolism") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "200.3") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "200.4") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "200.5") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "202.7") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "lymphosarc") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "lymphsrc") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "plasmacytom") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "hx-lymphatic malign nec") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "kaposi's sarcoma nos") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "letterer-siwe") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "lymph/hematpoitc tis nec") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "malig neopl pleura nec") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "oth imno npl wo ach rms") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "oth lym leu wo achv rmsn") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "oth varn unsp xtrndl org") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "paraproteinemia nec") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "second malig neo pleura") /* other */
+replace heme_type = 10 if cancer_type==2 & strpos(icd9desc, "ndr sclr unsp xtrndl org") /* other */
+
+tab icd9desc if heme_type==0
+
+label define heme_type_l 1 "multiple myeloma" 2 "non-Hodgkin lymphoma" 3 "CLL" 4 "CML" 5 "other leukemia" 6 "macroglobulinemia" ///
+7 "Hodgkin lymphoma" 8 "Sezary CTCL" 9 "mast cell" 10 "other", replace
+
+label values heme_type heme_type_l
+
+rename heme_type heme_type_original
+
+* new framework - from Dr. Hsieh
+gen heme_type = 0 if cancer_type==2
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "lymphoma") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "oth lymp") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "mal neo lymph node") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "ndlr lym") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "burkitt") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "mal neo lymph-axilla/arm") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "mal neo lymph-intrathor ") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "malig neo lymph nodes") /* lymphoma */
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "szry") /* lymphoma*/
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "mycosis") /* lymphoma*/
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "periph t cell lym ingui") /* lymphoma*/
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "margin zone lymph") /* lymphoma*/
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "margnl zone") /* lymphoma*/
+replace heme_type = 1 if cancer_type==2 & strpos(icd9desc, "periph t cell lym") /* lymphoma*/
+replace heme_type = 1 if cancer_type==2 & strpos(icd10desc, "lymphoma") /* lymphoma*/
+replace heme_type = 1 if cancer_type==2 & strpos(icd10desc, "Oth types of non-hodg lymph") /* lymphoma*/
+ 
+
+
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "hdgk") /* hodgkin */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "hodgkin") /* hodgkin */
+replace heme_type = 2 if cancer_type==2 & strpos(icd9desc, "hodg") /* hodgkin */
+
+replace heme_type = 3 if cancer_type==2 & strpos(icd9desc, "chr lymphoid") /* CLL */
+replace heme_type = 3 if cancer_type==2 & strpos(icd9desc, "ch lym leuk") /* CLL */
+replace heme_type = 3 if cancer_type==2 & strpos(icd9desc, "chr lym") /* CLL */
+replace heme_type = 3 if cancer_type==2 & strpos(icd9desc, "chr lymphoid leukemia") /* CLL */
+
+
+replace heme_type = 4 if cancer_type==2 & strpos(icd9desc, "chronic myeloid") /* CML */
+replace heme_type = 4 if cancer_type==2 & strpos(icd9desc, "ch myl") /* CML */
+replace heme_type = 4 if cancer_type==2 & strpos(icd9desc, "chronic myeloid leukemia") /* CML */
+
+
+
+
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "multiple myeloma") /* plasma cell dyscrasia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "mult mye") /* plasma cell dyscrasia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "macroglob") /* plasma cell dyscrasia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "paraproteinemia nec") /* plasma cell dyscrasia */
+replace heme_type = 5 if cancer_type==2 & strpos(icd9desc, "plasmacytom") /* plasma cell dyscrasia */
+
+
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "ac leu un cl wo") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "ac mono leu wo achv rmsn") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "ac lym leuk wo achv rmsn") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "ac myl leuk wo achv rmsn") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "act lym leuk w rmsion") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "act mono leuk w rmsion") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd9desc, "act myl leuk w rmsion") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd10desc, "Acute myeloblastic leukemia") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd10desc, "Acute lymphoblastic leukemia") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd10desc, "Acute monoblastic/monocytic leukemia") /* acute leukemia */
+replace heme_type = 6 if cancer_type==2 & strpos(icd10desc, "Acute leukemia") /* acute leukemia */
+
+
+
+
+
+replace heme_type = 0 if cancer_type==2 & missing(heme_type)
+tab icd9desc if heme_type==0
+
+label define heme_type_hsieh_l 1 "non-Hodgkin lymphoma" 2 "Hodgkin lymphoma" 3 "CLL" 4 "CML" 5 "plasma cell dyscrasia" ///
+6 "acute leukemia" 7 "mast cell" 8 "LCH" 0 "myelodysplastic syndrome", replace
+
+label values heme_type heme_type_hsieh_l
+
+tab heme_type_original /* original/Jack formulation */
+tab heme_type /* Dr. Hsieh formulation */
+
+count if heme_type==0
+
+* per Hsieh recommendations in email from 5/12
+list MRN icd9desc icd10desc if heme_type==0
+
+replace heme_type = 6 if MRN==5527643
+replace heme_type = 2 if MRN==11911536
+replace heme_type = 2 if MRN==16211109
+replace heme_type =. if MRN==20011750 /* history of cancer, should be excluded */
+replace heme_type =7 if MRN==18906112 /* mast cell */
+replace heme_type = 1 if MRN==20669306 
+replace heme_type =. if MRN==20731087 /* history of cancer, should be excluded */
+replace heme_type = 6 if MRN==21726036 
+replace heme_type = 3 if MRN==22212397
+replace heme_type = 6 if MRN==23900114
+replace heme_type = 8 if MRN==25039700
+replace heme_type = 3 if MRN==27597939
+replace heme_type = 3 if MRN==27743714
+replace heme_type =. if MRN==27991882 /* pleural, not heme, malignancy */
+replace heme_type = 6 if MRN==28141246
+replace heme_type = 3 if MRN==30110170
+replace heme_type = 8 if MRN==30667336
+replace heme_type =7 if MRN==32031943 /* mast cell */
+replace heme_type = 6 if MRN==38880527
+replace heme_type =. if MRN==39955318 /* pleural, not heme, malignancy */
+replace heme_type = 1 if MRN==40846158 
+replace heme_type = 6 if MRN==42951978
+replace heme_type = 8 if MRN==43499270
+replace heme_type = 5 if MRN==47436192
+replace heme_type = 3 if MRN==48593410
+replace heme_type =. if MRN==48665969 /* vascular, not heme, malignancy */
+replace heme_type = 8 if MRN==50683460
+replace heme_type = 3 if MRN==50908984
+replace heme_type = 1 if MRN==53118151 
+replace heme_type = 1 if MRN==53155154 
+replace heme_type =7 if MRN==56555293 /* mast cell */
+replace heme_type = 3 if MRN==60275912
+replace heme_type = 6 if MRN==73758513
+replace heme_type = 8 if MRN==76649073
+replace heme_type = 3 if MRN==80064888
+
+tab heme_type undetectable, col chi2
+
+replace cancer_type_other =5 if MRN==27991882 
+replace cancer_type_other =5 if MRN==39955318
+replace cancer_type_other =5 if MRN==48665969
+replace cancer_type_other =. if MRN==20011750 
+replace cancer_type_other =. if MRN==20731087
+baselinetable cancer(value(1)) BMI_category undetectable(value(1)) smoking HIV(value(1)) CVID(value(1)) immunodeficiency(value(1)) ///
+age_category male race xolair(value(1))
+
+baselinetable cancer(value(1)) BMI_category smoking HIV(value(1)) CVID(value(1)) immunodeficiency(value(1)) ///
+age_category male race xolair(value(1)) cancer_type_other, by(undetectable)
+
+table1_mc, by(undetectable) ///
+vars(  ///
+cancer bin %4.0f \ ///
+BMI_category cat %4.0f \ ///
+smoking cat %4.0f \ ///
+HIV bin %4.0f \ ///
+CVID bin %4.0f \ ///
+immunodeficiency bin %4.0f \ ///
+age_category cat %4.0f \ ///
+male bin %4.0f \ ///
+race cat %4.0f \ ///
+xolair bin %4.0f \ ///
+cancer_type_other cat %4.0f \ ///
+) /// 
+percent onecol
+
+save demographics_table_file, replace
+
+tab melanoma
+
+tab melanoma undetectable, col chi2
+
+tab heme_type undetectable, col chi2
+
+tab cancer_type_other undetectable if cancer_type_other==3, chi2
+
+* RESULTS
+
+use models, clear
+
+sum study_time, detail
+
+use demographics_table_file, clear
+count if !missing(DEATH_DATE)
+di 3310/39844 * 100
+
+*range of dates
+
+use models, clear
+
+sort collectdate
+format collectdate %td
+
+* first
+list collectdate in 1
+
+* last
+drop if missing(collectdate)
+list collectdate in l 
+
+* malignancy
+
+use demographics_table_file, clear
+
+
+* undetectable IgE
+
+tab undetectable 
+
+tab cancer undetectable, col `'
+
+tab undetectable cancer, row
+*how many got cancer/were undetectable
+
+tab cancer undetectable, nolabel col 
+
+tab cancer undetectable, nolabel row
+
+bysort undetectable: tab cancer_type_other 
+
+* hematologic specifically
+
+tab cancer_type_other undetectable, col
+
+graph hbar, over(heme_type) by(, title(Categories of Hematologic Malignancy) subtitle(by IgE status)) by(undetectable)
+graph pie, over(heme_type) by(undetectable) plabel(_all percent, gap(5) format("%2.0f"))
+* model table
+
+
+use models, clear
+
+* binary models - UNADJUSTED
+
+glm cancer undetectable, fam(poisson) link(log) /// 
+vce(robust) eform /* ever */
+
+logistic cancer undetectable
+
+* binary models ADJUSTED
+
+glm cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male ib4.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /* ever */
+
+logistic cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male ib4.race i.xolair /* ever */
+ 
+glm cancer_year undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male ib4.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /* 1 year */
+
+estimates store binary_one
+
+logistic cancer_year undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male ib4.race i.xolair /* 1 year */
+
+glm cancer_3_year undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male ib4.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /* 3 year */
+
+estimates store binary_three
+
+logistic cancer_3_year undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male ib4.race i.xolair /* 3 year */
+
+glm cancer_5_year undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male ib4.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /* 5 year */
+
+estimates store binary_five
+
+logistic cancer_5_year undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male ib4.race i.xolair /* 5 year */
+
+glm cancer_10_year undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male ib4.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /* 10 year */
+
+estimates store binary_ten
+
+logistic cancer_10_year undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male ib4.race i.xolair /* 10 year */
+
+* survival models
+
+* survival ever UNADJUSTED
+use models, clear
+
+gen censor_date = collectdate + 365*100
+format censor_date %td
+list collectdate censor_date in 1/10
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= censor_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= censor_date /* outcome - cancer */
+replace event = 3 if last_contact_date <= censor_date & event ==0 /* left CCF */
+
+gen event_date = censor_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+replace event_date = last_contact_date if event ==3
+
+format event_date %td
+
+list MRN collectdate death_date cancer_dx_date censor_date event event_date in 1/100
+// list MRN collectdate death_date cancer_dx_date censor_date event event_date in 200/1000
+
+stset event_date, origin(time collectdate) fail(event==2) id(MRN) 
+count if missing(collectdate)
+list MRN collectdate death_date cancer_dx_date censor_date event event_date _st-_t0 in 1/100
+
+stdescribe
+// stcox ib2.IgE_category i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair
+
+stcox undetectable /* EVER */
+
+* SURVIVAL EVER ADJUSTED
+
+stcox undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male ib4.race i.xolair /* EVER */
+estimates store survival_ever
+
+linktest /* significant h, insignificant h squared, what we want to see */
+sts graph, by(undetectable) ylabel(minmax)
+estat phtest
+
+stcox undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.male ib4.race i.xolair, strata(age_category) /* with stratification */
+estat phtest
+
+use models, clear
+* one year 
+
+gen censor_date = collectdate + 365*1
+format censor_date %td
+list collectdate censor_date in 1/10
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= censor_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= censor_date /* outcome - cancer */
+replace event = 3 if last_contact_date <= censor_date & event ==0 /* left CCF */
+
+gen event_date = censor_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+replace event_date = last_contact_date if event ==3
+
+format event_date %td
+
+list MRN collectdate death_date cancer_dx_date censor_date event event_date in 1/100
+// list MRN collectdate death_date cancer_dx_date censor_date event event_date in 200/1000
+
+stset event_date, origin(time collectdate) fail(event==2) id(MRN) 
+count if missing(collectdate)
+list MRN collectdate death_date cancer_dx_date censor_date event event_date _st-_t0 in 1/100
+
+stdescribe
+// stcox ib2.IgE_category i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair
+stcox undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male ib4.race i.xolair /* one year */
+estimates store survival_one
+// sts graph, by(undetectable) ylabel(minmax)
+
+use models, clear
+
+* three year
+
+gen censor_date = collectdate + 365*3
+format censor_date %td
+list collectdate censor_date in 1/10
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= censor_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= censor_date /* outcome - cancer */
+replace event = 3 if last_contact_date <= censor_date & event ==0 /* left CCF */
+
+
+gen event_date = censor_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+replace event_date = last_contact_date if event ==3
+
+format event_date %td
+
+list MRN collectdate death_date cancer_dx_date censor_date event event_date in 1/100
+// list MRN collectdate death_date cancer_dx_date censor_date event event_date in 200/1000
+
+stset event_date, origin(time collectdate) fail(event==2) id(MRN) /* note: probable error is because 6,000 subjects missing collectdate */
+list MRN collectdate death_date cancer_dx_date censor_date event event_date _st-_t0 in 1/100
+
+stdescribe
+// stcox ib2.IgE_category i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair
+stcox undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male ib4.race i.xolair /* three year */
+estimates store survival_three
+
+// sts graph, by(undetectable) ylabel(minmax)
+
+use models, clear
+
+* five year
+
+gen censor_date = collectdate + 365*5
+format censor_date %td
+list collectdate censor_date in 1/10
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= censor_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= censor_date /* outcome - cancer */
+replace event = 3 if last_contact_date <= censor_date & event ==0 /* left CCF */
+
+
+gen event_date = censor_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+replace event_date = last_contact_date if event ==3
+
+format event_date %td
+
+list MRN collectdate death_date cancer_dx_date censor_date event event_date in 1/100
+// list MRN collectdate death_date cancer_dx_date censor_date event event_date in 200/1000
+
+stset event_date, origin(time collectdate) fail(event==2) id(MRN) /* note: probable error is because 6,000 subjects missing collectdate */
+list MRN collectdate death_date cancer_dx_date censor_date event event_date _st-_t0 in 1/100
+
+stdescribe
+// stcox ib2.IgE_category i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair
+stcox undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male ib4.race i.xolair
+estimates store survival_five
+use models, clear
+
+* ten years
+
+gen censor_date = collectdate + 365*10
+format censor_date %td
+list collectdate censor_date in 1/10
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= censor_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= censor_date /* outcome - cancer */
+replace event = 3 if last_contact_date <= censor_date & event ==0 /* left CCF */
+
+gen event_date = censor_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+replace event_date = last_contact_date if event ==3
+
+format event_date %td
+
+list MRN collectdate death_date cancer_dx_date censor_date event event_date in 1/100
+// list MRN collectdate death_date cancer_dx_date censor_date event event_date in 200/1000
+
+stset event_date, origin(time collectdate) fail(event==2) id(MRN) /* note: probable error is because 6,000 subjects missing collectdate */
+list MRN collectdate death_date cancer_dx_date censor_date event event_date _st-_t0 in 1/100
+
+stdescribe
+// stcox ib2.IgE_category i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair
+stcox undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male ib4.race i.xolair
+estimates store survival_ten
+
+label drop undetectable_l
+sts graph, by(undetectable) ylabel(#5) xlabel(0(365)3650) title(Kaplan-Meier survival estimates) subtitle(10 year malignancy) legend(on ///
+order(2 "undetectable IgE" 1 "detectable IgE"))
+* note: used graph editor to manually edit X axis to years
+
+use models, clear
+
+****CHECK LATER
+// estimates table binary_ever binary_one binary_three binary_five binary_ten, b(%7.2f) p(%4.3f) /*star*/ eform
+// estimates table survival_ever survival_one survival_three survival_five survival_ten, b(%7.2f) p(%4.3f) /*star*/ eform
+
+tab cancer_type_other
+
+* blood cancer
+gen blood_cancer = 0 
+replace blood_cancer = 1 if cancer_type_other ==2
+
+* skin cancer
+gen skin_cancer = 0 
+replace skin_cancer = 1 if cancer_type_other ==1
+
+* breast cancer
+gen breast_cancer = 0 
+replace breast_cancer = 1 if cancer_type_other ==3
+
+* urological cancer
+gen uro_cancer = 0 
+replace uro_cancer = 1 if cancer_type_other ==4
+
+* cancer other 
+gen other_cancer = 0 
+replace other_cancer = 1 if cancer_type_other ==5
+
+glm blood_cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /*blood cancer*/ 
+
+*how about skin cancer
+
+glm skin_cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /*skin cancer */
+
+*how about breast cancer
+
+glm breast_cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /*breast_cancer - not significant  */
+
+*how about uro cancer - won't converge
+
+// glm uro_cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+// vce(robust) eform /*urological cancer */
+
+*how about other cancer
+
+glm other_cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /*other_cancer - not significant */
+
+* sensitivity analysis
+* 5 level categorical IgE
+
+use models, clear
+
+table IgE_category, contents(min IgE max IgE) 
+tabulate IgE_category, nolabel
+
+* cancer by time - modified Poisson
+
+glm cancer ib2.IgE_category i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform 
+
+* cancer by time - cox
+use models, clear
+
+gen censor_date = collectdate + 365*100
+format censor_date %td
+list collectdate censor_date in 1/10
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= censor_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= censor_date /* outcome - cancer */
+replace event = 3 if last_contact_date <= censor_date & event ==0 /* left CCF */
+
+gen event_date = censor_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+replace event_date = last_contact_date if event ==3
+
+format event_date %td
+
+list MRN collectdate death_date cancer_dx_date censor_date event event_date in 1/100
+// list MRN collectdate death_date cancer_dx_date censor_date event event_date in 200/1000
+
+stset event_date, origin(time collectdate) fail(event==2) id(MRN) 
+count if missing(collectdate)
+list MRN collectdate death_date cancer_dx_date censor_date event event_date _st-_t0 in 1/100
+
+stdescribe
+
+stcox ib2.IgE_category i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair
+
+* specific cancers
+
+use models, clear
+
+tab cancer_type_other
+
+* blood cancer
+gen blood_cancer = 0 
+replace blood_cancer = 1 if cancer_type_other ==2
+
+* skin cancer
+gen skin_cancer = 0 
+replace skin_cancer = 1 if cancer_type_other ==1
+
+* breast cancer
+gen breast_cancer = 0 
+replace breast_cancer = 1 if cancer_type_other ==3
+
+* urological cancer
+gen uro_cancer = 0 
+replace uro_cancer = 1 if cancer_type_other ==4
+
+* cancer other 
+gen other_cancer = 0 
+replace other_cancer = 1 if cancer_type_other ==5
+
+glm blood_cancer ib2.IgE_category i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /*blood cancer*/ 
+
+*how about skin cancer
+
+glm skin_cancer ib2.IgE_category i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /*skin cancer */
+
+* hazard - stratified by age
+
+use models, clear
+
+gen censor_date = collectdate + 365*100
+format censor_date %td
+list collectdate censor_date in 1/10
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= censor_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= censor_date /* outcome - cancer */
+replace event = 3 if last_contact_date <= censor_date & event ==0 /* left CCF */
+
+gen event_date = censor_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+replace event_date = last_contact_date if event ==3
+
+format event_date %td
+
+list MRN collectdate death_date cancer_dx_date censor_date event event_date in 1/100
+// list MRN collectdate death_date cancer_dx_date censor_date event event_date in 200/1000
+
+stset event_date, origin(time collectdate) fail(event==2) id(MRN) 
+count if missing(collectdate)
+list MRN collectdate death_date cancer_dx_date censor_date event event_date _st-_t0 in 1/100
+
+stdescribe
+
+stcox undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.male ib4.race i.xolair, strata(age_category) /* with stratification */
+
+* hazard - agexIgE interactions
+
+stcox ib2.IgE_category##i.age_category i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.male i.race i.xolair
+estimates store interactions
+estimates table interactions, b(%7.2f) p(%4.3f) /*star*/ eform
+
+* sensitivity analysis incorporating repeated IgE measurements
+
+use IgE_data_whole, clear
+
+*************************************************************************************************************************************************************
+*exclusions
+
+tab unique_subject /* original number of subject before exclusion criteria performed */
+
+* first get rid of those with excessive IgE measurements
+sort MRN collectdate
+list MRN collectdate in 1/100, sepby(MRN)
+by MRN: gen collect_first = collectdate[1]
+format collect_first %td
+list MRN collectdate collect_first in 1/100, sepby(MRN)
+by MRN: gen delta = collectdate-collect_first
+list MRN collectdate collect_first delta in 1/100, sepby(MRN)
+by MRN: gen collect_index = _n
+list MRN collectdate collect_first delta collect_index in 1/100, sepby(MRN)
+
+list MRN collectdate collect_first delta collect_index if collect_index >=3, sepby(MRN)
+by MRN: gen drop_flag = 1 if collect_index==3 & delta[3] <365
+
+list MRN collectdate collect_first delta collect_index drop_flag if collect_index >=3, sepby(MRN)
+by MRN: replace drop_flag = 1 if drop_flag[3] ==1
+list MRN collectdate collect_first delta collect_index drop_flag if drop_flag==1, sepby(MRN)
+
+count if unique_subject==1 & drop_flag==1 /* 761 unique subjects with excessive measurements */
+
+drop if drop_flag==1
+
+* drop all repeated measurements
+// drop if intIndex > 1
+
+* age exclusion
+
+drop if age < 18 /* 9478 */
+
+* prior cancer
+gen cancer_prior = 0
+replace cancer_prior = 1 if cancer_dx_date < collectdate
+
+drop if cancer_prior == 1 /* 4008 */
+
+* fast time to malignancy
+
+gen time_to_cancer = cancer_dx_date-collectdate if cancer==1
+
+count if time_to_cancer <90 /* 414 */
+drop if time_to_cancer <90 
+
+count if !missing(IgE)
+
+
+**************************************************************************************************************************************************************further cleaning/coding of covariates
+
+drop unique_subject /* no longer applies */
+
+list BMI if BMI<10
+replace BMI=. if BMI<10 & !missing(BMI)
+replace BMI=. if BMI >=80 & !missing(BMI)
+
+
+sum BMI, detail
+sum age, detail
+
+egen IgE_category = cut(IgE), at(0,3,10,114,1000, 120000) label
+table IgE_category, contents(min IgE max IgE) 
+tabulate IgE_category, nolabel
+
+egen BMI_category = cut(BMI), at(0,25,30,35,40, 80)
+table BMI_category, contents(min BMI max BMI)
+
+replace cancer = 0 if cancer != 1
+tabulate cancer
+
+recode cancer_type (3=1) /* Skin */ (2=2) /* hematologic*/ (5=3) /* breast */ (4=5) /* GI to other */ (8=4) /* urological */ (1=5) /* Other */ ///
+(6=5) (7=5) (9=5) (10=5) (11=5) (12=5) (13=5), gen(cancer_type_other) 
+
+label define cancer_type_other_l 1 "skin" 2 "hematologic" 3 "breast" 4 "urological" 5 "other", replace
+label values cancer_type_other cancer_type_other_l
+label variable cancer_type_other "consolidated cancer type"
+
+tab cancer_type cancer_type_other, missing
+tabulate cancer_type_other
+tab IgE_category
+tab BMI_category
+tab smoking
+
+replace HIV = 0 if HIV != 1
+tab HIV
+
+replace CVID = 0 if CVID != 1
+tab CVID 
+
+replace immunodeficiency = 0 if immunodeficiency != 1
+tab immunodeficiency
+
+egen age_category = cut(age), at(0,35,45,55,65,75,85,101)
+table age_category, contents(min age max age)
+
+tab male
+tab race
+
+replace xolair = 0 if xolair != 1
+tab xolair
+
+drop undetectable /* dropping now because it was based on the < designation, not less than 3 */
+gen undetectable = 1 if IgE_category == 0
+replace undetectable = 0 if IgE_category != 0
+
+histogram IgE if IgE <1000, percent title(Histogram of IgE Levels) subtitle(IgE <= 1000 IU/mL) caption(distribution of IgE levels ///
+demonstrated significant right skewing)
+
+label define IgE_category_l 0 "undetectable (<3)" 1 "low (>=3 & <10)" 2 "medium (>=10 & <114)" 3 "high (>=114 & <1000)" ///
+4 "extremely elevated (>=1000)", replace
+
+label values IgE_category IgE_category_l
+graph hbar, over(IgE_category) title(Categorical Distribution of IgE Levels) subtitle(in IU/mL)
+
+tab IgE_category undetectable
+
+label define cancer_l 1 "during total study period", replace
+label values cancer cancer_l
+
+label variable BMI_category "BMI (kg/m^2)"
+label define BMI_l 0 "<25" 25 "25-29" 30 "30-34" 35 "35-39" 40 ">= 40", replace
+label values BMI_category BMI_l
+
+label variable smoking "smoking history"
+
+label variable HIV "subject diagnosed"
+label define HIV_l 1 "with HIV", replace
+label values HIV HIV_l
+
+label variable CVID "subject"
+label define CVID_l 1 "with common variable immunodeficiency (CVID)", replace
+label values CVID CVID_l
+
+label variable immunodeficiency "subject"
+label define immunodeficiency_l 1 "with non-CVID immunodeficiency", replace
+label values immunodeficiency immunodeficiency_l
+
+label variable age_category "age (years)"
+label define age_category_l 0 "18-34" 35 "35-44" 45 "45-54" 55 "55-64" 65 "65-74" 75 "75-84" 85 ">= 85", replace
+label values age_category age_category_l
+
+label variable male "subject"
+label define male_l 1 "male", replace
+label values male male_l
+
+label variable race "subject race"
+label define race_l 1 "Asian" 2 "African American" 3 "Other" 4 "Caucasian", replace
+label values male male_l
+
+label variable xolair "subject"
+label define xolair_l 1 "ever received Omalizumab (anti-IgE mAB)", replace
+label values xolair xolair_l
+
+label variable IgE_category "IgE (IU/mL)"
+label define IgE_category_l 0 "undetectable (<3)" 1 "low (>=3 & <10)" 2 "medium (>=10 & <114)" 3 "high (>=114 & <1000)" ///
+4 "extremely elevated (>=1000)", replace
+label values IgE_category IgE_category_l
+
+label variable undetectable "IgE (IU/mL)"
+label define undetectable_l 0 "detectable (>= 3)" 1 "undetectable (<3)", replace
+label values undetectable undetectable_l
+
+// save demographics_table_file, replace
+// use demographics_table_file, clear
+* cancer periods for binary analysis
+
+gen cancer_year = 0 
+replace cancer_year = 1 if cancer_dx_date-collectdate <= 365
+
+gen cancer_3_year = 0 
+replace cancer_3_year = 1 if cancer_dx_date-collectdate <= (3*365)
+
+gen cancer_5_year = 0
+replace cancer_5_year = 1 if cancer_dx_date-collectdate <= (5*365)
+
+gen cancer_10_year = 0 
+replace cancer_10_year = 1 if cancer_dx_date-collectdate <= (10*365)
+
+* study time for survival analysis
+
+*DEATH_DATE
+format DEATH_DATE %td
+rename DEATH_DATE death_date
+
+*LAST_CONTACT_DATE
+format LAST_CONTACT_DATE %td
+rename LAST_CONTACT_DATE last_contact_date
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= last_contact_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= last_contact_date /* outcome - cancer */
+
+
+gen event_date = last_contact_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+
+gen study_time = (event_date - collectdate)/365.25
+sum study_time, detail
+
+replace last_contact_date = collectdate if study_time <0 & study_time >= -0.1 /* this fixes folks where the last contact date and IgE date were within days of each other */
+
+count if study_time < 0 
+list MRN death_date last_contact_date IgE collectdate event_date study_time if study_time < 0 
+
+replace collectdate = td(23oct2019) if MRN==87844501
+replace last_contact_date = td(25jun2020) if MRN==87666800
+replace collectdate = td(08jan2020) if MRN==87522513
+drop if MRN==87522513 /* kid */
+replace last_contact_date = td(11feb2020) if MRN==87457001
+replace collectdate = td(10feb2020) if MRN==87457001
+replace collectdate = td(03jul2019) if MRN==87352407
+drop if MRN==87352407 /* kid */
+drop if MRN==87338329 /* kid */
+drop if MRN==87666800 /* kid */
+replace collectdate = td(03jul2019) if MRN==87352407
+
+count if study_time < 0 & missing(age)
+list MRN death_date last_contact_date IgE collectdate event_date study_time if study_time < 0 & missing(age)
+drop if study_time < 0 & missing(age) /* all kids from Florida, shouldn't be in here anyways */
+count if study_time < 0
+
+list MRN death_date last_contact_date IgE collectdate event_date study_time if study_time < 0 
+replace collectdate = td(07nov2016) if MRN==87057200
+replace collectdate = td(16dec2016) if MRN==87056448
+replace collectdate = td(18may2016) if MRN==87055130
+replace collectdate = td(08jan2018) if MRN==87047556
+replace collectdate = td(27oct2017) if MRN==87015034
+replace collectdate = td(20oct2016) if MRN==87003353
+replace collectdate = td(02nov2017) if MRN==86990649
+replace collectdate = td(17feb2017) if MRN==86975559
+replace collectdate = td(01apr2016) if MRN==86975307
+replace collectdate = td(01apr2016) if MRN==86968824
+replace collectdate = td(09aug2017) if MRN==86959578
+replace collectdate = td(05dec2016) if MRN==86958820
+replace collectdate = td(03may2016) if MRN==86951087
+replace collectdate = td(12sep2017) if MRN==86943015
+replace collectdate = td(28jan2016) if MRN==86931951
+replace collectdate = td(17aug2016) if MRN==86928861
+replace collectdate = td(14jan2016) if MRN==86915845
+replace collectdate = td(08sep2016) if MRN==86869429
+replace collectdate = td(09jun2016) if MRN==86863377
+replace collectdate = td(10mar2016) if MRN==86858746
+replace collectdate = td(16mar2016) if MRN==86852283
+replace collectdate = td(03aug2016) if MRN==86968824
+replace collectdate = td(04may2016) if MRN==85535500
+replace collectdate = td(18apr2016) if MRN==85515752
+replace collectdate=death_date if MRN==84010964
+replace collectdate = td(30dec2016) if MRN==84001253
+replace collectdate = td(16aug2017) if MRN==83975077
+replace collectdate = td(01mar2017) if MRN==83869167
+replace collectdate=death_date if MRN==84010964
+replace last_contact_date = td(30dec2016) if MRN==84001253
+replace collectdate = td(09aug2016) if MRN==82928766
+replace collectdate = td(03dec2015) if MRN==81858187
+replace collectdate=death_date if MRN==78150998
+replace last_contact_date=death_date if MRN==78150998
+replace last_contact_date=death_date if MRN==77697136
+replace collectdate=death_date if MRN==77697136
+replace collectdate=death_date if MRN==75862547
+replace last_contact_date=death_date if MRN==75862547
+replace collectdate=death_date if MRN==75862547
+replace death_date = . if MRN==72102967 /* incorrect death date */
+replace collectdate = td(29aug2016) if MRN==70687844 
+replace collectdate = td(01dec2017) if MRN==59573713 
+replace death_date = . if MRN==56533044 /* incorrect death date */
+replace last_contact_date=death_date if MRN==49441681
+replace collectdate=death_date if MRN==49441681
+replace death_date = . if MRN==49418221 /* not dead */
+replace collectdate = td(30jan2018) if MRN==46586077 
+replace death_date=td(22jun2006) if MRN==36035170 /* wrong death date */
+replace last_contact_date=death_date if MRN==36035170 
+replace collectdate = td(08dec2017) if MRN==30875974
+replace collectdate = td(06apr2017) if MRN==30485203
+replace last_contact_date=death_date if MRN==29589208
+replace collectdate=death_date if MRN==29589208
+replace collectdate=last_contact_date if MRN==27964648
+drop if MRN==27791786 /* no information, no IgE */
+drop if MRN==27386962 /* no information, no IgE */
+replace collectdate = td(14nov2014) if MRN==19952142 
+replace death_date = . if MRN==19732096 /* dead at unknown time */
+replace death_date = . if MRN==11398375 /* dead at unknown time */
+replace collectdate = last_contact_date if MRN==36562374 
+replace collectdate = td(25Jul2012) if MRN==17494589
+replace collectdate = td(14Mar2017) if MRN==16010880
+
+* interim code to update list *
+drop study_time event event_date
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= last_contact_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= last_contact_date /* outcome - cancer */
+
+
+gen event_date = last_contact_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+
+
+format event_date %td
+
+gen study_time = (event_date - collectdate)/365.25
+sum study_time, detail
+
+count if study_time < 0 
+list MRN death_date last_contact_date IgE collectdate event_date study_time if study_time < 0 
+
+drop event event_date
+
+// * some demographics
+//
+// baselinetable cancer(value(1)) BMI_category undetectable(value(1)) smoking HIV(value(1)) CVID(value(1)) immunodeficiency(value(1)) ///
+// age_category male(value(1)) race xolair(value(1)), missing
+//
+// baselinetable cancer(value(1)) BMI_category smoking HIV(value(1)) CVID(value(1)) immunodeficiency(value(1)) ///
+// age_category male(value(1)) race xolair(value(1)), by(undetectable) missing
+//
+// tab cancer undetectable, nolabel col
+//
+// tab cancer_type_other undetectable, col
+//
+// graph hbar, over(cancer_type_other) blabel(bar, format(%5.0g)) by(, title(First Malignancies) subtitle(grouped by IgE status (undetectable or detectable)) caption(percentage of hematologic malignancy almost doubled in the undetectable IgE group)) by(undetectable)
+//
+// save models, replace
+
+* cancer by time - modified Poisson
+
+glm cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform 
+
+* cancer by time - cox
+use models, clear
+
+gen censor_date = collectdate + 365*100
+format censor_date %td
+list collectdate censor_date in 1/10
+
+gen event = 0 /* nonevent - didn't get cancer, didn't die, didn't leave */
+replace event = 1 if !missing(death_date) & death_date <= censor_date /* death */
+replace event = 2 if cancer==1 & cancer_dx_date <= censor_date /* outcome - cancer */
+replace event = 3 if last_contact_date <= censor_date & event ==0 /* left CCF */
+
+gen event_date = censor_date
+replace event_date = death_date if event ==1
+replace event_date = cancer_dx_date if event ==2
+replace event_date = last_contact_date if event ==3
+
+format event_date %td
+
+list MRN collectdate death_date cancer_dx_date censor_date event event_date in 1/100
+// list MRN collectdate death_date cancer_dx_date censor_date event event_date in 200/1000
+
+stset event_date, origin(time collectdate) fail(event==2) id(MRN) 
+count if missing(collectdate)
+list MRN collectdate death_date cancer_dx_date censor_date event event_date _st-_t0 in 1/100
+
+stdescribe
+
+stcox undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair
+
+* specific cancers
+
+use models, clear
+
+tab cancer_type_other
+
+* blood cancer
+gen blood_cancer = 0 
+replace blood_cancer = 1 if cancer_type_other ==2
+
+* skin cancer
+gen skin_cancer = 0 
+replace skin_cancer = 1 if cancer_type_other ==1
+
+* breast cancer
+gen breast_cancer = 0 
+replace breast_cancer = 1 if cancer_type_other ==3
+
+* urological cancer
+gen uro_cancer = 0 
+replace uro_cancer = 1 if cancer_type_other ==4
+
+* cancer other 
+gen other_cancer = 0 
+replace other_cancer = 1 if cancer_type_other ==5
+
+glm blood_cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /*blood cancer*/ 
+
+*how about skin cancer
+
+glm skin_cancer undetectable i.BMI_category i.smoking i.HIV i.CVID i.immunodeficiency i.age_category i.male i.race i.xolair, fam(poisson) link(log) /// 
+vce(robust) eform /*skin cancer */
